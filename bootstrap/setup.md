@@ -25,12 +25,13 @@ Run these checks after creating or updating the environment:
 ```bash
 uv run python -c "from jupyter_workbench import SessionService, ExecutionService, SnapshotService; print('workbench ok')"
 uv run python -c "import microct_analysis; import pydicom; import nibabel; import numpy; import scipy; import skimage; import pyvista; import trame; print('analysis runtime ok')"
+uv run python -c "import SimpleITK; print('SimpleITK ok')"
 ```
 
 At session open, verify the workbench kernel can import the same runtime dependencies before spawning specialists:
 
 ```bash
-jupyter-workbench exec "import microct_analysis; import pydicom; import nibabel; import numpy; import scipy; import skimage; import pyvista; import trame; print('analysis runtime ok')"
+jupyter-workbench exec "import microct_analysis; import pydicom; import nibabel; import numpy; import scipy; import skimage; import pyvista; import trame; import SimpleITK; print('analysis runtime ok')"
 ```
 
 If any check fails, stop before running notebooks or skills. Install or link the missing package, then rerun all checks. Do not continue with partial bootstrap state because later notebook failures may look like analysis bugs instead of environment problems.
@@ -67,6 +68,20 @@ Run intake through the stage driver:
 
 ```bash
 jupyter-workbench exec --session-id microct-run-001 --file src/microct_analysis/stages/intake.py -- /path/to/dicom-or-scan --output-dir .jupyter-workbench/microct-run-001
+```
+
+Run segmentation from intake metadata (inline snippet — `exec --file` does not pass arguments):
+
+```bash
+jupyter-workbench exec --session-id microct-run-001 "$(uv run python - <<'PY'
+import json
+from microct_analysis.stages.segmentation import run_segmentation
+print(json.dumps(run_segmentation(
+    intake_metadata_path='.jupyter-workbench/microct-run-001/intake/volume_metadata.json',
+    output_dir='.jupyter-workbench/microct-run-001',
+)))
+PY
+)"
 ```
 
 Poll durable visualization events:

@@ -33,7 +33,22 @@ substages and confounders.
 - Operate only inside the passed session. Never open a new workbench
   session.
 - Execute the segmentation stage driver in the existing session via
-  `jupyter-workbench exec --file src/microct_analysis/stages/segmentation.py`.
+  inline `jupyter-workbench exec` snippets that call `run_segmentation()` directly,
+  passing `intake_metadata_path` (or `dicom_path`), `thresholds`, `output_dir`,
+  and optional `seeds_path`. Example pattern:
+
+  ```
+  jupyter-workbench exec --session-id <session_id> "$(uv run python - <<'PY'
+  import json
+  from microct_analysis.stages.segmentation import run_segmentation
+  print(json.dumps(run_segmentation(
+      intake_metadata_path='.jupyter-workbench/<session_id>/intake/volume_metadata.json',
+      output_dir='.jupyter-workbench/<session_id>',
+  )))
+  PY
+  )"
+  ```
+
   Short inline `exec` snippets are fine for scene refresh, event polling, screenshot capture, or
   markdown logging.
 - Return a structured stage report. Do not act on run-level confidence;
@@ -69,7 +84,10 @@ surface for user review.
 When the segmentation driver returns ambiguous bone identity:
 
 1. Open the interactive segmentation review scene in the existing
-   session, showing labeled candidate components, the auto-proposed
+   session, loading candidate components from
+   `segmentation/components.nii.gz`, assigned labels from
+   `segmentation/structure_assignments.json`, and pipeline status/flags
+   from `segmentation/metadata.json`. Show the auto-proposed
    seed assignments as the initial state, and the most recent
    segmentation screenshot for context.
 2. Poll the workbench's generic event log and translate events into
@@ -82,8 +100,9 @@ When the segmentation driver returns ambiguous bone identity:
    name the component, current assignment, proposed assignment,
    supporting evidence, and expected visual consequence.
 4. When the user confirms a complete and valid seed mapping, persist it
-   as the durable seed artifact, add a notebook markdown explanation,
-   and rerun the segmentation driver with the curated seeds.
+   as the durable seed artifact (`segmentation/seeds.json`), add a
+   notebook markdown explanation, and rerun the segmentation driver
+   with `seeds_path='.jupyter-workbench/<session_id>/segmentation/seeds.json'`.
 5. If the rerun returns ready, report normally. If ambiguity remains,
    reopen the review scene with the latest assignments and repeat. If
    it returns failed, report `low` with the evidence.
@@ -177,9 +196,13 @@ reference comparison results, and confounder observations. Apply
 Use the report shape in `mct-visual-review`. Stage name: `segmentation`.
 Artifact keys:
 
-- `labels` — labeled segmentation volume
+- `metadata` — pipeline metadata with status, flags, per-bone stats
+- `stage_report` — structured stage report JSON
+- `labels` — labeled segmentation volume (when status is `ready`)
+- `components` — component label volume (`segmentation/components.nii.gz`)
 - `structure_assignments` — component-to-bone assignment record
 - `seeds` — accepted seed mapping (when curation ran)
+- `masks` — per-bone mask directory (`segmentation/masks/`, when status is `ready`)
 - `screenshots` — list of `segmentation/screenshot_<NNN>.png`
 
 `evidence` should cite threshold agreement, reference comparisons,

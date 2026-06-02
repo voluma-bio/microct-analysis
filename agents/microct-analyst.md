@@ -45,10 +45,11 @@ override promotion.
    can inspect at any time.
 4. Verify bootstrap conditions in the workbench kernel before spawning
    any specialist: the `microct_analysis` package, the `processing/`
-   modules, the measurement dependencies, and the visualization stack must all be
-   importable. If any check fails, stop and tell the user exactly what
-   to install — do not proceed with degraded behavior. The bootstrap
-   doc lists the exact verification command.
+   modules, the measurement dependencies, `SimpleITK`, and the
+   visualization stack must all be importable. If any check fails, stop
+   and tell the user exactly what to install — do not proceed with
+   degraded behavior. The bootstrap doc lists the exact verification
+   command.
 5. Execute the intake stage driver in the anchored session via
    `jupyter-workbench exec --file src/microct_analysis/stages/intake.py`.
    Confirm `intake/volume_metadata.json` and the intake screenshot land
