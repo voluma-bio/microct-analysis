@@ -22,6 +22,7 @@ PROCESSING_MODULES = {
     "microct_analysis.processing.morphology",
     "microct_analysis.processing.orientation",
     "microct_analysis.processing.preprocess",
+    "microct_analysis.processing.profiles",
     "microct_analysis.processing.resample",
     "microct_analysis.processing.sanity",
     "microct_analysis.processing.segmentation",
