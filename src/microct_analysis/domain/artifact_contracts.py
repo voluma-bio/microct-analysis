@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 class IntakeArtifacts:
     volume_metadata: str = "intake/volume_metadata.json"
     orientation_report: str = "intake/orientation_report.md"
+    stage_report: str = "intake/stage_report.json"
     screenshot: str = "intake/screenshot_001.png"
 
 
@@ -17,6 +18,10 @@ class SegmentationArtifacts:
     labels: str = "segmentation/labels.nii.gz"
     structure_assignments: str = "segmentation/structure_assignments.json"
     seeds: str = "segmentation/seeds.json"
+    metadata: str = "segmentation/metadata.json"
+    stage_report: str = "segmentation/stage_report.json"
+    components: str = "segmentation/components.nii.gz"
+    masks_dir: str = "segmentation/masks"
 
 
 @dataclass(frozen=True)

@@ -665,16 +665,28 @@ def _resolve_dicom_path(*, dicom_path: str | None, intake_metadata_path: str | N
         raise LoadError("missing-dicom-files", f"intake metadata not found: {metadata_file}") from exc
     except json.JSONDecodeError as exc:
         raise LoadError("missing-dicom-tags", f"intake metadata is not valid JSON: {exc}") from exc
-    candidate = metadata.get("dicom_path")
+    candidates: list[Any] = [metadata.get("dicom_source_dir")]
     provenance = metadata.get("provenance")
-    if candidate is None and isinstance(provenance, dict):
-        candidate = provenance.get("source_dir")
-    if not candidate:
-        raise LoadError("missing-dicom-files", "intake metadata does not include dicom_path/provenance.source_dir")
-    resolved = Path(str(candidate))
-    if not resolved.is_absolute():
-        resolved = metadata_file.parent / resolved
-    return resolved
+    if isinstance(provenance, dict):
+        candidates.append(provenance.get("source_dir"))
+    candidates.extend([metadata.get("dicom_path"), metadata.get("source_dir")])
+
+    attempted: list[Path] = []
+    for candidate in candidates:
+        if not candidate:
+            continue
+        resolved = Path(str(candidate))
+        if not resolved.is_absolute():
+            resolved = metadata_file.parent / resolved
+        if resolved in attempted:
+            continue
+        attempted.append(resolved)
+        if resolved.is_dir():
+            return resolved
+    if attempted:
+        attempted_text = ", ".join(str(path) for path in attempted)
+        raise LoadError("missing-dicom-files", f"no usable DICOM directory from intake metadata exists; attempted: {attempted_text}")
+    raise LoadError("missing-dicom-files", "intake metadata does not include dicom_path/provenance.source_dir")
 
 
 def _resolve_scanner_profile(scanner_override: str, manufacturer: str, model: str) -> scanner_profiles.ScannerProfile:
