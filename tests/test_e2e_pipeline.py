@@ -29,6 +29,7 @@ def _write_slice(path: Path, *, instance: int, z: float, pixels: np.ndarray) -> 
     dataset.AcquisitionDate = "20260504"
     dataset.InstanceNumber = instance
     dataset.ImagePositionPatient = [0.0, 0.0, z]
+    dataset.ImageOrientationPatient = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
     dataset.PixelSpacing = [1.0, 1.0]
     dataset.SliceThickness = 1.0
     dataset.Rows = int(pixels.shape[0])
