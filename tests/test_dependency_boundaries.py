@@ -29,9 +29,10 @@ PROCESSING_MODULES = {
     "microct_analysis.processing.surface",
     "microct_analysis.processing.threshold",
     "microct_analysis.processing.types",
+    "microct_analysis.processing.watershed",
 }
 
-SCIENTIFIC_DEPENDENCIES = ("pydicom", "nibabel", "scipy", "skimage")
+SCIENTIFIC_DEPENDENCIES = ("pydicom", "nibabel", "scipy", "skimage", "SimpleITK")
 
 ALLOWED_CORE_MODULES = {
     "microct_analysis.__init__",

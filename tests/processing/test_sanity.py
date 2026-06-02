@@ -1,19 +1,31 @@
 import numpy as np
 
 from microct_analysis.processing.sanity import (
+    check,
     check_bone_volume_ordering,
     check_condyle_separation,
     check_femoral_length_plausibility,
     check_iioc_slice_count,
     check_tibial_ratio,
 )
-from microct_analysis.processing.types import LabelVolume
+from microct_analysis.processing.types import BoneLabels, BoneStats, LabelVolume
 
 
 def _labels(counts: dict[str, int]) -> LabelVolume:
     label_map = {"femur": 1, "tibia": 2, "fibula": 3, "patella": 4}
     data = np.concatenate([np.full(counts[name], label_id, dtype=np.uint8) for name, label_id in label_map.items()])
     return LabelVolume(data=data, spacing=(0.01, 0.01, 0.01), label_map=label_map)
+
+
+def _stats(label: int, name: str, voxels: int) -> BoneStats:
+    return BoneStats(
+        label=label,
+        name=name,
+        voxel_count=voxels,
+        volume_mm3=voxels * 1e-6,
+        centroid_mm=(0.0, 0.0, 0.0),
+        bbox_zyx=((0, 1), (0, 1), (0, 1)),
+    )
 
 
 def test_bone_volume_ordering_accepts_expected_order():
@@ -75,3 +87,29 @@ def test_tibial_ratio_boundaries_are_inclusive():
     assert check_tibial_ratio(0.45) == []
     assert check_tibial_ratio(0.149)
     assert check_tibial_ratio(0.451)
+
+
+def test_structural_sanity_check_flags_edges_and_volume_order():
+    volume = np.zeros((40, 40, 40), dtype=np.uint8)
+    volume[20, 0, 20] = 1
+    volume[21, 20, 20] = 2
+    bone_labels = BoneLabels(
+        volume=volume,
+        per_bone={
+            "femur": _stats(1, "femur", 100),
+            "tibia": _stats(2, "tibia", 500),
+        },
+    )
+
+    flags = check(bone_labels)
+
+    assert "bone-volume-order-wrong" in flags
+    assert "bone-on-ap-edge" in flags
+
+
+def test_structural_sanity_check_flags_component_count_extremes():
+    empty = BoneLabels(volume=np.zeros((4, 4, 4), dtype=np.uint8), per_bone={})
+    one = BoneLabels(volume=np.zeros((4, 4, 4), dtype=np.uint8), per_bone={"femur": _stats(1, "femur", 1)})
+
+    assert "no-bones-labeled" in check(empty)
+    assert "only-one-bone-labeled" in check(one)

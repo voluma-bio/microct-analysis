@@ -41,6 +41,32 @@ def test_watershed_segment_splits_simple_two_region_case():
     assert grown[0, 0, 4] == 2
 
 
+def test_watershed_segment_does_not_label_unseeded_disconnected_mask_islands():
+    filtered = np.zeros((1, 1, 5), dtype=np.uint16)
+    mask = np.zeros_like(filtered, dtype=bool)
+    mask[0, 0, 0] = True
+    mask[0, 0, 4] = True
+    seeds = np.zeros_like(filtered, dtype=np.int32)
+    seeds[0, 0, 0] = 1
+
+    grown = watershed_segment(filtered, seeds, mask)
+
+    assert grown[0, 0, 0] == 1
+    assert grown[0, 0, 4] == 0
+
+
+def test_watershed_segment_handles_unsigned_intensity_without_wraparound():
+    filtered = np.array([[[5000, 4000, 3000, 4000, 5000]]], dtype=np.uint16)
+    mask = np.ones_like(filtered, dtype=bool)
+    seeds = np.zeros_like(filtered, dtype=np.int32)
+    seeds[0, 0, 0] = 1
+    seeds[0, 0, 4] = 2
+
+    grown = watershed_segment(filtered, seeds, mask)
+
+    assert set(np.unique(grown)) == {1, 2}
+
+
 def test_extract_label_returns_boolean_mask_for_requested_label():
     grown = np.array([[0, 1, 2], [2, 1, 0]])
 
