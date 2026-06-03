@@ -9,9 +9,6 @@ from dataclasses import dataclass
 class ScannerProfile:
     key: str
     manufacturer_substrings: tuple[str, ...] = ()
-    profile_mask_threshold: float | None = None
-    profile_marker_threshold: float | None = None
-    has_documented_thresholds: bool = False
 
     def matches(self, manufacturer: str, model: str) -> bool:
         text = f"{manufacturer or ''} {model or ''}".lower()
@@ -21,9 +18,6 @@ class ScannerProfile:
 SCANCO = ScannerProfile(
     key="scanco",
     manufacturer_substrings=("scanco",),
-    profile_mask_threshold=2500.0,
-    profile_marker_threshold=3500.0,
-    has_documented_thresholds=True,
 )
 UNKNOWN = ScannerProfile(key="unknown")
 

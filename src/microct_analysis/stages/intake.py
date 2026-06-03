@@ -170,7 +170,6 @@ def _scanner_detection(profile: profiles.ScannerProfile, manufacturer: str, mode
         "manufacturer": manufacturer,
         "model": model,
         "matched": profile.key != "unknown",
-        "has_documented_thresholds": profile.has_documented_thresholds,
     }
 
 

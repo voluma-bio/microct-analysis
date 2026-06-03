@@ -86,7 +86,7 @@ def run_segmentation(
     intake_metadata_path: str | None = None,
     scanner: str = "auto",
     scanner_override: str | None = None,
-    threshold_method: str = "auto",
+    threshold_method: str = "histogram",
     mask_threshold: float | None = None,
     marker_threshold: float | None = None,
     bimodality_ratio: float = DEFAULT_BIMODALITY_RATIO,
@@ -343,7 +343,6 @@ def _run_full_pipeline(
 
         seg_thresholds, analysis_counts, cal_flags = _derive_segmentation_thresholds_for_stage(
             resampled,
-            profile,
             thresholds=thresholds,
             threshold_method=threshold_method,
             mask_threshold=mask_threshold,
@@ -700,7 +699,6 @@ def _resolve_scanner_profile(scanner_override: str, manufacturer: str, model: st
 
 def _derive_segmentation_thresholds_for_stage(
     volume: np.ndarray,
-    profile: scanner_profiles.ScannerProfile,
     *,
     thresholds: dict[str, Any] | Thresholds | SegmentationThresholds | None,
     threshold_method: str,
@@ -715,30 +713,10 @@ def _derive_segmentation_thresholds_for_stage(
         return manual, analysis.counts.tolist(), ["manual-thresholds-used"]
 
     method = threshold_method.lower()
-    if method == "profile":
-        if not profile.has_documented_thresholds or profile.profile_mask_threshold is None or profile.profile_marker_threshold is None:
-            raise LoadError("missing-profile", f"profile {profile.key!r} has no documented segmentation thresholds")
-        return (
-            SegmentationThresholds(
-                mask=float(profile.profile_mask_threshold),
-                marker=float(profile.profile_marker_threshold),
-                method="scanner-profile",
-            ),
-            analysis.counts.tolist(),
-            [],
-        )
-    if method == "histogram":
+    if method in ("histogram", "auto"):
         derived, histogram, flags = derive_segmentation_thresholds(
             volume,
             scanner_profiles.UNKNOWN,
-            bimodality_ratio=bimodality_ratio,
-            marker_percentile=marker_percentile,
-        )
-        return derived, histogram.counts.tolist(), flags
-    if method == "auto":
-        derived, histogram, flags = derive_segmentation_thresholds(
-            volume,
-            profile,
             bimodality_ratio=bimodality_ratio,
             marker_percentile=marker_percentile,
         )

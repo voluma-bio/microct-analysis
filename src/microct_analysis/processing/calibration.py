@@ -16,7 +16,6 @@ HIST_BINS = 512
 HIST_RANGE = (-500.0, 20000.0)
 DEFAULT_BIMODALITY_RATIO = 0.55
 DEFAULT_MARKER_PERCENTILE = 65.0
-PROFILE_AGREEMENT_TOLERANCE = 0.15
 VALLEY_PEAK_RATIO = 1.3
 
 
@@ -114,8 +113,10 @@ def derive_segmentation_thresholds(
     _require_bimodal(analysis, bimodality_ratio)
 
     histogram_thresholds = _histogram_segmentation_thresholds(volume, analysis, marker_percentile)
-    thresholds, flags = _reconcile_profile_thresholds(histogram_thresholds, scanner_profile)
-    return thresholds, analysis, flags
+    flags: list[str] = []
+    if scanner_profile.key == "unknown":
+        flags.append("calibration-unverified")
+    return histogram_thresholds, analysis, flags
 
 
 def _finite_values(volume: np.ndarray) -> np.ndarray:
@@ -221,43 +222,3 @@ def _histogram_segmentation_thresholds(
         raise LoadError("histogram-not-bimodal", "no voxels above Otsu threshold (degenerate histogram)")
     marker_threshold = float(np.percentile(above_mask, marker_percentile))
     return SegmentationThresholds(mask=mask_threshold, marker=marker_threshold, method="histogram-otsu")
-
-
-def _reconcile_profile_thresholds(
-    histogram_thresholds: SegmentationThresholds,
-    profile: ScannerProfile,
-) -> tuple[SegmentationThresholds, list[str]]:
-    if not profile.has_documented_thresholds:
-        return histogram_thresholds, ["calibration-unverified"]
-
-    profile_thresholds = _profile_thresholds(profile)
-    if _thresholds_agree(profile_thresholds, histogram_thresholds):
-        return (
-            SegmentationThresholds(
-                mask=profile_thresholds.mask,
-                marker=profile_thresholds.marker,
-                method="scanner-profile+histogram-verified",
-            ),
-            [],
-        )
-    return histogram_thresholds, ["threshold-profile-disagreement"]
-
-
-def _profile_thresholds(profile: ScannerProfile) -> SegmentationThresholds:
-    if profile.profile_mask_threshold is None or profile.profile_marker_threshold is None:
-        raise LoadError("missing-profile", f"profile {profile.key!r} has no documented thresholds")
-    return SegmentationThresholds(
-        mask=float(profile.profile_mask_threshold),
-        marker=float(profile.profile_marker_threshold),
-        method="scanner-profile",
-    )
-
-
-def _thresholds_agree(profile: SegmentationThresholds, histogram: SegmentationThresholds) -> bool:
-    rel_err_mask = _relative_error(profile.mask, histogram.mask)
-    rel_err_marker = _relative_error(profile.marker, histogram.marker)
-    return rel_err_mask <= PROFILE_AGREEMENT_TOLERANCE and rel_err_marker <= PROFILE_AGREEMENT_TOLERANCE
-
-
-def _relative_error(expected: float, actual: float) -> float:
-    return abs(expected - actual) / max(abs(actual), 1.0)

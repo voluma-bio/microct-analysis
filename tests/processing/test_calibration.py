@@ -75,13 +75,13 @@ def test_derive_segmentation_thresholds_unknown_profile_uses_histogram_otsu() ->
     assert "calibration-unverified" in flags
 
 
-def test_derive_segmentation_thresholds_scanco_profile_can_be_verified() -> None:
+def test_derive_segmentation_thresholds_scanco_profile_is_irrelevant() -> None:
     thresholds, analysis, flags = derive_segmentation_thresholds(_bimodal_segmentation_volume(), profiles.SCANCO)
 
     assert analysis.is_bimodal
-    assert thresholds.method in {"scanner-profile+histogram-verified", "histogram-otsu"}
-    if thresholds.method == "histogram-otsu":
-        assert "threshold-profile-disagreement" in flags
+    assert thresholds.method == "histogram-otsu"
+    assert thresholds.mask > 2100
+    assert thresholds.marker > thresholds.mask
 
 
 def test_derive_segmentation_thresholds_unimodal_escalates() -> None:
