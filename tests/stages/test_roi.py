@@ -71,7 +71,7 @@ def test_measurement_loads_roi_mask_metadata_nifti(tmp_path: Path) -> None:
     mask_path = tmp_path / "roi_mask.nii.gz"
     nib.save(nib.Nifti1Image(mask, np.eye(4)), str(mask_path))
     metadata_path = tmp_path / "roi_mask.json"
-    metadata_path.write_text(json.dumps({"mask_file": str(mask_path)}))
+    metadata_path.write_text(json.dumps({"mask_file": mask_path.name}))
 
     masks = _load_roi_masks({"roi_masks": {"trabecular_roi": str(metadata_path)}})
 

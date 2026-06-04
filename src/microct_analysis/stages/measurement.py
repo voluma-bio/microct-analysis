@@ -143,10 +143,14 @@ def _load_roi_masks(roi_artifacts: dict[str, Any]) -> dict[str, np.ndarray]:
 
 
 def _load_roi_mask(path: str) -> np.ndarray | None:
-    if Path(path).suffix == ".json":
+    mask_path = Path(path)
+    if mask_path.suffix == ".json":
         payload = _load_json(path)
         if "mask_file" in payload:
-            return _load_array(str(payload["mask_file"]))
+            linked_path = Path(str(payload["mask_file"]))
+            if not linked_path.is_absolute():
+                linked_path = mask_path.parent / linked_path
+            return _load_array(str(linked_path))
         return np.asarray(payload) if isinstance(payload, list) else None
     return _load_array(path)
 
