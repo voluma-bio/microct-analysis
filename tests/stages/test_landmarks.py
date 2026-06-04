@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from microct_analysis.stages.landmarks_orientation import (
     _femoral_surface_position,
@@ -160,6 +161,20 @@ def test_growth_plate_sustained_drop_accepts_terminal_transition() -> None:
     assert _is_sustained_drop(ratios, 5, 0.5, 3)
 
 
+# FALSE-GREEN: this test only passes because oa6_1rk_tibia_fill_ratios.npz is
+# fabricated — its fill ratios are idealized step values (~0.55 until slice 276,
+# then 0.42 at 280) that select slice 278. The real OA6-1RK pipeline computes a
+# noisy bone-fraction signal that first sustainably drops below 0.5 at the
+# epiphysis (~246), so the live detector returns 246/247 (IIOC 40 sl), NOT 278.
+# The bone_fill_ratio_drop @ 50% method locates the wrong feature; LDA-1's
+# sustained-drop refinement cannot help. Marked strict-xfail so this fabricated
+# pass registers as a failure until the growth-plate algorithm + a pipeline-
+# captured fixture are reworked (work item: landmark-detector-accuracy, growth
+# plate). See session microct-oa6-1rk-004 validation.
+@pytest.mark.xfail(
+    strict=True,
+    reason="fabricated growth-plate fixture; live pipeline returns 246 not 278 — detector unsolved",
+)
 def test_growth_plate_oa6_1rk_selects_sustained_drop() -> None:
     data = np.load(FIXTURES / "oa6_1rk_tibia_fill_ratios.npz")
     golden = json.loads((FIXTURES / "oa6_1rk_golden.json").read_text())
