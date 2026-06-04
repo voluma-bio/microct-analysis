@@ -44,22 +44,14 @@ def test_find_saddle_point_returns_anterior_distal_midline_groove_vertex() -> No
     assert np.allclose(saddle, expected)
 
 
-def test_find_notch_depth_returns_most_proximal_posterior_midline_vertex() -> None:
-    vertices = np.array(
-        [
-            [1.0, 3.0, -4.0],
-            [2.0, 3.2, 4.0],
-            [5.5, 3.5, 0.0],
-            [4.0, 3.4, 0.4],
-            [6.0, -3.0, 0.0],
-            [8.0, 0.0, 6.0],
-            [8.0, 0.0, -6.0],
-        ]
-    )
+def test_find_notch_depth_returns_distal_posterior_midline_notch_not_shaft() -> None:
+    vertices = _notch_fixture_vertices()
 
     notch = find_notch_depth(vertices)
 
-    assert np.allclose(notch, [5.5, 3.5, 0.0])
+    assert np.allclose(notch, [3.0, 3.0, 0.0])
+    assert notch[0] < 5.0
+    assert notch[2] == 0.0
 
 
 def _dumbbell_vertices() -> np.ndarray:
@@ -95,3 +87,41 @@ def _dumbbell_vertices() -> np.ndarray:
         ]
     )
     return np.vstack([left_condyle, right_condyle, groove, proximal_noise])
+
+
+def _notch_fixture_vertices() -> np.ndarray:
+    left_posterior = np.array(
+        [
+            [1.0, 3.0, -4.0],
+            [2.0, 3.0, -3.5],
+        ]
+    )
+    right_posterior = np.array(
+        [
+            [1.0, 3.0, 4.0],
+            [2.0, 3.0, 3.5],
+        ]
+    )
+    notch = np.array([[3.0, 3.0, 0.0]])
+    shaft = np.array(
+        [
+            [8.0, 3.0, 0.0],
+            [7.0, 3.0, -1.0],
+            [8.0, 3.0, 1.0],
+            [9.0, 3.0, 0.0],
+        ]
+    )
+    anterior = np.array(
+        [
+            [2.0, -3.0, 0.0],
+            [5.0, -2.0, 0.0],
+            [1.0, -3.0, -4.0],
+            [2.0, -3.0, -3.5],
+            [1.0, -3.0, 4.0],
+            [2.0, -3.0, 3.5],
+            [7.0, -3.0, -1.0],
+            [8.0, -3.0, 1.0],
+            [9.0, -3.0, 0.0],
+        ]
+    )
+    return np.vstack([left_posterior, right_posterior, notch, shaft, anterior])

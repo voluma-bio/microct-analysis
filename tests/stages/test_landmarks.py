@@ -5,7 +5,13 @@ from pathlib import Path
 
 import numpy as np
 
-from microct_analysis.stages.landmarks_orientation import compute_orientation_frame, run_landmarks_orientation
+from microct_analysis.stages.landmarks_orientation import (
+    _growth_plate_slice,
+    _landmark_confidence,
+    _tibial_slice_position,
+    compute_orientation_frame,
+    run_landmarks_orientation,
+)
 
 
 def test_landmark_positions_written_from_label_centroid_and_extrema(tmp_path: Path) -> None:
@@ -98,6 +104,56 @@ def test_pca_orientation_fallback_marks_tibial_landmarks_low_confidence(tmp_path
     assert positions["landmarks"][0]["confidence"] == "low"
     assert positions["landmarks"][0]["requires_user_confirmation"] is True
     assert "PyVista" in report_text
+
+
+def test_growth_plate_slice_uses_intensity_bone_fill_drop() -> None:
+    mask = np.ones((10, 5, 5), dtype=bool)
+    intensity = np.zeros(mask.shape, dtype=np.float32)
+    intensity[:5, :, :4] = 100.0
+    intensity[5:, :, :1] = 100.0
+    definition = {
+        "id": "growth_plate_proximal",
+        "domain": "tibial_2d_slice",
+        "geometric_params": {
+            "detection": "bone_fill_ratio_drop",
+            "fill_ratio_threshold_pct": 50,
+            "min_consecutive_above": 5,
+        },
+    }
+
+    voxel, confidence, evidence = _tibial_slice_position(
+        definition, mask, (1.0, 1.0, 1.0), "growth_plate", intensity
+    )
+
+    assert voxel[0] == 5.0
+    assert confidence == "high"
+    assert "growth plate boundary at slice 5" in evidence
+
+
+def test_growth_plate_slice_falls_back_to_label_area_without_intensity() -> None:
+    mask = np.zeros((8, 5, 5), dtype=bool)
+    mask[:5, :4, :4] = True
+    mask[5, :2, :2] = True
+    counts = mask.reshape(mask.shape[0], -1).sum(axis=1)
+
+    growth = _growth_plate_slice(mask, counts, 0, {"detection": "bone_fill_ratio_drop", "min_consecutive_above": 5})
+
+    assert growth == 5
+
+
+def test_landmark_confidence_names_implausible_growth_plate_not_orientation() -> None:
+    landmarks = [
+        {"id": "articular_surface_proximal", "voxel": [20.0, 0.0, 0.0], "confidence": "high"},
+        {"id": "growth_plate_proximal", "voxel": [145.0, 0.0, 0.0], "confidence": "high"},
+    ]
+
+    confidence, evidence = _landmark_confidence(landmarks, {"orientation_confidence": "high", "explanation": ""})
+
+    assert confidence == "medium"
+    assert landmarks[1]["confidence"] == "medium"
+    assert "Growth plate at slice 145" in evidence
+    assert "IIOC = 125" in evidence
+    assert "PCA orientation unavailable" not in evidence
 
 
 def test_oriented_tibial_landmark_differs_from_unoriented_asymmetric_volume(tmp_path: Path) -> None:

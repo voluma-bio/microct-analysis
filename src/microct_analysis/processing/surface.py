@@ -67,22 +67,29 @@ def find_saddle_point(vertices: np.ndarray, *, surface_region: str = "anterior_d
     return distal[int(np.argmin(score))].copy()
 
 
-def find_notch_depth(vertices: np.ndarray) -> np.ndarray:
+def find_notch_depth(vertices: np.ndarray, *, surface_region: str = "posterior_intercondylar") -> np.ndarray:
     """Find the deepest posterior intercondylar notch point."""
 
+    if surface_region != "posterior_intercondylar":
+        raise ValueError("only surface_region='posterior_intercondylar' is supported")
     points = _as_vertices(vertices)
     posterior = points[points[:, _AP_AXIS] > np.median(points[:, _AP_AXIS])]
     if posterior.size == 0:
         raise ValueError("could not identify posterior surface vertices")
 
+    si_cutoff = np.median(posterior[:, _SI_AXIS])
+    distal_posterior = posterior[posterior[:, _SI_AXIS] <= si_cutoff]
+    if distal_posterior.size == 0:
+        raise ValueError("could not identify distal posterior surface vertices")
+
     ml_midline = np.median(points[:, _ML_AXIS])
     ml_span = np.ptp(points[:, _ML_AXIS])
     tolerance = max(ml_span * 0.1, np.finfo(float).eps)
-    midline = posterior[np.abs(posterior[:, _ML_AXIS] - ml_midline) <= tolerance]
+    midline = distal_posterior[np.abs(distal_posterior[:, _ML_AXIS] - ml_midline) <= tolerance]
     if midline.size == 0:
-        distances = np.abs(posterior[:, _ML_AXIS] - ml_midline)
-        keep_count = max(1, min(len(posterior), len(points) // 20))
-        midline = posterior[np.argsort(distances)[:keep_count]]
+        distances = np.abs(distal_posterior[:, _ML_AXIS] - ml_midline)
+        keep_count = max(1, min(len(distal_posterior), len(points) // 20))
+        midline = distal_posterior[np.argsort(distances)[:keep_count]]
 
     return midline[int(np.argmax(midline[:, _SI_AXIS]))].copy()
 

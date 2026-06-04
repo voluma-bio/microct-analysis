@@ -8,6 +8,7 @@ from typing import Any
 
 import nibabel as nib
 import numpy as np
+from skimage.filters import threshold_otsu
 
 from microct_analysis.domain.artifact_contracts import screenshot_path
 from microct_analysis.processing.orientation import center_volume, pca_orient
@@ -47,6 +48,7 @@ def run_landmarks_orientation(
                 assignments,
                 spacing,
                 force_low_confidence=_force_low_tibial_confidence(definition, orientation_result),
+                intensity=orientation_result.get("oriented_intensity"),
             )
             for definition in workflow_landmarks
         ],
@@ -58,12 +60,12 @@ def run_landmarks_orientation(
 
     orientation_frame = compute_orientation_frame(positions["landmarks"], workflow_orientation)
     _add_pca_orientation_provenance(orientation_frame, orientation_result, workflow_orientation)
+    confidence, evidence = _landmark_confidence(positions["landmarks"], orientation_frame)
     _write_json(output_root / "positions.json", positions)
     _write_json(output_root / "orientation_frame.json", orientation_frame)
     _write_json(output_root / "transform_matrix.json", orientation_frame["pca_orientation"])
     _write_orientation_report(output_root / "orientation_report.md", orientation_frame, orientation_result)
 
-    confidence, evidence = _landmark_confidence(positions["landmarks"], orientation_frame)
     return {
         "stage": "landmarks",
         "confidence": confidence,
@@ -294,13 +296,14 @@ def _compute_landmark(
     assignments: dict[str, Any],
     spacing: tuple[float, float, float],
     force_low_confidence: bool = False,
+    intensity: np.ndarray | None = None,
 ) -> dict[str, Any]:
     landmark_id = str(definition.get("id") or definition.get("name"))
     structure = str(definition.get("structure") or definition.get("target_structure") or definition.get("bone") or "")
     method = str(definition.get("geometric_method") or definition.get("method", "centroid"))
     domain = str(definition.get("domain", ""))
     label_value = _label_for_structure(structure, assignments, definition)
-    voxel, confidence, note = _position_from_definition(definition, labels, label_value, spacing, method)
+    voxel, confidence, note = _position_from_definition(definition, labels, label_value, spacing, method, intensity)
     if force_low_confidence:
         confidence = "low"
         note = f"PCA orientation unavailable; user-assisted PyVista orientation required. {note}"
@@ -325,6 +328,7 @@ def _position_from_definition(
     label_value: int | None,
     spacing: tuple[float, float, float],
     method: str,
+    intensity: np.ndarray | None = None,
 ) -> tuple[tuple[float, float, float], str, str]:
     if "voxel" in definition:
         return _triple(definition["voxel"]), "high", "landmark provided explicit voxel coordinates"
@@ -343,7 +347,7 @@ def _position_from_definition(
     if domain == "femoral_3d_surface":
         return _femoral_surface_position(definition, mask, spacing, method)
     if domain == "tibial_2d_slice":
-        return _tibial_slice_position(definition, mask, spacing, method)
+        return _tibial_slice_position(definition, mask, spacing, method, intensity)
 
     return _centroid_fallback(mask, method, "legacy label-statistic landmark")
 
@@ -361,7 +365,7 @@ def _femoral_surface_position(
         if method == "saddle_point" or landmark_id == "intercondylar_groove_midpoint":
             point = find_saddle_point(vertices, surface_region=str(params.get("surface_region", "anterior_distal")))
         elif method == "notch_depth_maximum" or landmark_id == "intercondylar_notch":
-            point = find_notch_depth(vertices)
+            point = find_notch_depth(vertices, surface_region=str(params.get("surface_region", "posterior_intercondylar")))
         elif method == "surface_extreme" or landmark_id in {"lateral_condylar_edge", "medial_condylar_edge"}:
             direction = str(params.get("direction") or ("lateral" if "lateral" in landmark_id else "medial"))
             point = find_condylar_edge(
@@ -369,15 +373,28 @@ def _femoral_surface_position(
             )
         else:
             raise ValueError(f"unsupported femoral surface landmark method: {method}")
+        confidence = "high"
+        note = f"surface feature detected from {len(vertices)} mesh vertices"
+        if landmark_id == "intercondylar_notch":
+            si_range = np.ptp(vertices[:, 0])
+            si_min = np.min(vertices[:, 0])
+            relative_position = (point[0] - si_min) / si_range if si_range > 0 else 0.5
+            if relative_position > 0.6:
+                confidence = "low"
+                note += "; notch position is implausibly proximal (shaft region)"
         voxel = tuple(float(point[index]) / label_volume.spacing[index] for index in range(3))
-        return voxel, "high", f"surface feature detected from {len(vertices)} mesh vertices"
+        return voxel, confidence, note
     except Exception as exc:
         voxel, _confidence, _note = _centroid_fallback(mask, method, f"surface detection failed: {exc}")
         return voxel, "low", f"surface detection failed; centroid/extrema fallback used: {exc}"
 
 
 def _tibial_slice_position(
-    definition: dict[str, Any], mask: np.ndarray, spacing: tuple[float, float, float], method: str
+    definition: dict[str, Any],
+    mask: np.ndarray,
+    spacing: tuple[float, float, float],
+    method: str,
+    intensity: np.ndarray | None = None,
 ) -> tuple[tuple[float, float, float], str, str]:
     coords = np.argwhere(mask)
     if coords.size == 0:
@@ -386,7 +403,7 @@ def _tibial_slice_position(
     landmark_id = str(definition.get("id") or definition.get("name"))
     params = definition.get("geometric_params") if isinstance(definition.get("geometric_params"), dict) else {}
     articular = _articular_slice(counts, float(params.get("area_threshold_pct", 20)))
-    growth = _growth_plate_slice(mask, counts, articular, params)
+    growth = _growth_plate_slice(mask, counts, articular, params, intensity)
     measurement_slice = _measurement_slice(mask, articular, growth)
     if landmark_id == "articular_surface_proximal" or params.get("surface") == "articular":
         z_index = articular
@@ -429,7 +446,18 @@ def _articular_slice(counts: np.ndarray, threshold_pct: float) -> int:
     return int(candidates[0]) if candidates.size else int(nonzero[0])
 
 
-def _growth_plate_slice(mask: np.ndarray, counts: np.ndarray, articular: int, params: dict[str, Any]) -> int | None:
+def _growth_plate_slice(
+    mask: np.ndarray,
+    counts: np.ndarray,
+    articular: int,
+    params: dict[str, Any],
+    intensity: np.ndarray | None = None,
+) -> int | None:
+    if str(params.get("detection", "")) == "bone_fill_ratio_drop" and intensity is not None:
+        result = _growth_plate_slice_intensity(mask, intensity, articular, params)
+        if result is not None:
+            return result
+
     min_consecutive = int(params.get("min_consecutive_above", 5))
     # Label-only fallback: first pronounced area drop after a stable tibial plateau.
     max_count = float(counts.max())
@@ -445,6 +473,44 @@ def _growth_plate_slice(mask: np.ndarray, counts: np.ndarray, articular: int, pa
         if above_seen >= min_consecutive and counts[z_index] > 0:
             candidates.append(z_index)
     return min(candidates) if candidates else None
+
+
+def _growth_plate_slice_intensity(
+    mask: np.ndarray,
+    intensity: np.ndarray,
+    articular: int,
+    params: dict[str, Any],
+) -> int | None:
+    bone_threshold = _derive_bone_threshold(mask, intensity)
+    fill_threshold = float(params.get("fill_ratio_threshold_pct", 50)) / 100.0
+    min_consecutive = int(params.get("min_consecutive_above", 5))
+    above_seen = 0
+    candidates: list[int] = []
+
+    for z_index in range(articular, mask.shape[0]):
+        slice_mask = mask[z_index]
+        total_label = int(slice_mask.sum())
+        if total_label == 0:
+            above_seen = 0
+            continue
+
+        bone_count = int(((intensity[z_index] > bone_threshold) & slice_mask).sum())
+        ratio = bone_count / total_label
+        if ratio >= fill_threshold:
+            above_seen += 1
+        else:
+            if above_seen >= min_consecutive:
+                candidates.append(z_index)
+            above_seen = 0
+
+    return min(candidates) if candidates else None
+
+
+def _derive_bone_threshold(mask: np.ndarray, intensity: np.ndarray) -> float:
+    tibia_intensities = intensity[mask > 0].astype(float)
+    if tibia_intensities.size < 2:
+        return 0.0
+    return float(threshold_otsu(tibia_intensities))
 
 
 def _measurement_slice(mask: np.ndarray, articular: int, growth: int | None) -> int:
@@ -510,6 +576,9 @@ def _translation(workflow_orientation: dict[str, Any], landmarks: dict[str, np.n
 def _landmark_confidence(landmarks: list[dict[str, Any]], orientation_frame: dict[str, Any]) -> tuple[str, str]:
     if orientation_frame.get("orientation_confidence") == "low":
         return "low", "PCA orientation unavailable; tibial landmarks require user-assisted PyVista orientation."
+    tibial_issue = _tibial_interval_issue(landmarks)
+    if tibial_issue is not None:
+        return "medium", tibial_issue
     weak = [item["id"] for item in landmarks if item.get("confidence") != "high"]
     if weak:
         return "medium", f"Computed landmarks, but {', '.join(weak)} used fallback coordinates."
@@ -518,6 +587,25 @@ def _landmark_confidence(landmarks: list[dict[str, Any]], orientation_frame: dic
         "Landmarks placed from workflow definitions and orientation transform recorded. "
         + orientation_frame["explanation"],
     )
+
+
+def _tibial_interval_issue(landmarks: list[dict[str, Any]]) -> str | None:
+    articular = next((item for item in landmarks if "articular" in str(item.get("id", ""))), None)
+    growth = next((item for item in landmarks if "growth_plate" in str(item.get("id", ""))), None)
+    if articular is None or growth is None:
+        return None
+
+    growth_z = float(growth.get("voxel", [0.0])[0])
+    articular_z = float(articular.get("voxel", [0.0])[0])
+    iioc_slices = growth_z - articular_z
+    if iioc_slices <= 0 or iioc_slices > 100:
+        growth["confidence"] = "medium"
+        growth["evidence"] = (
+            f"Growth plate at slice {growth_z:g} is implausible (IIOC = {iioc_slices:g} slices); "
+            "review landmark detection."
+        )
+        return growth["evidence"]
+    return None
 
 
 def _recommended_action(confidence: str) -> str:
