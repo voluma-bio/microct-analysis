@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from microct_analysis.stages.landmarks_orientation import (
+    _femoral_surface_position,
     _growth_plate_slice,
     _landmark_confidence,
     _tibial_slice_position,
@@ -139,6 +140,84 @@ def test_growth_plate_slice_falls_back_to_label_area_without_intensity() -> None
     growth = _growth_plate_slice(mask, counts, 0, {"detection": "bone_fill_ratio_drop", "min_consecutive_above": 5})
 
     assert growth == 5
+
+
+def test_run_landmarks_orientation_threads_filtered_intensity_to_growth_plate(tmp_path: Path) -> None:
+    labels = np.zeros((11, 5, 5), dtype=np.uint8)
+    labels[:, 1:4, 1:4] = 3
+    intensity = np.zeros(labels.shape, dtype=np.float32)
+    intensity[:5, 1:4, 1:3] = 100.0
+    intensity[5:, 1:4, 1:2] = 100.0
+    labels_path = tmp_path / "labels.npy"
+    intensity_path = tmp_path / "filtered.npy"
+    assignments_path = tmp_path / "structure_assignments.json"
+    np.save(labels_path, labels)
+    np.save(intensity_path, intensity)
+    assignments_path.write_text(json.dumps({"assignments": {"tibia": 3}, "spacing": [1.0, 1.0, 1.0]}))
+
+    report = run_landmarks_orientation(
+        {"labels": str(labels_path), "filtered": str(intensity_path), "structure_assignments": str(assignments_path)},
+        [
+            {"id": "articular_surface_proximal", "structure": "tibia", "domain": "tibial_2d_slice", "geometric_params": {"surface": "articular"}},
+            {
+                "id": "growth_plate_proximal",
+                "structure": "tibia",
+                "domain": "tibial_2d_slice",
+                "method": "growth_plate",
+                "geometric_params": {
+                    "detection": "bone_fill_ratio_drop",
+                    "fill_ratio_threshold_pct": 50,
+                    "min_consecutive_above": 5,
+                },
+            },
+        ],
+        {"target_plane": "frontal"},
+        output_dir=str(tmp_path / "landmarks"),
+    )
+
+    positions = json.loads((tmp_path / "landmarks" / "positions.json").read_text())
+
+    assert report["confidence"] == "high"
+    assert positions["landmarks"][1]["voxel"][0] == 5.0
+
+
+def test_femoral_notch_outside_distal_window_is_low_confidence(monkeypatch) -> None:
+    vertices = np.array(
+        [
+            [1.0, 3.0, -4.0],
+            [2.0, 3.0, -3.5],
+            [1.0, 3.0, 4.0],
+            [2.0, 3.0, 3.5],
+            [3.0, 3.0, 0.0],
+            [5.0, 3.0, 0.0],
+            [6.0, 3.0, 1.0],
+            [6.0, 3.0, -1.0],
+            [6.0, 3.0, 2.0],
+            [6.0, 3.0, -2.0],
+            [0.0, -3.0, 0.0],
+            [6.0, -3.0, 0.0],
+            [1.0, -3.0, -4.0],
+            [2.0, -3.0, -3.5],
+            [1.0, -3.0, 4.0],
+            [2.0, -3.0, 3.5],
+            [3.0, -3.0, 0.0],
+            [5.0, -3.0, 0.0],
+            [6.0, -3.0, 2.0],
+            [6.0, -3.0, -2.0],
+        ]
+    )
+
+    def fake_surface_mesh(_mask, _spacing):
+        return vertices, np.zeros((0, 3), dtype=np.int64)
+
+    monkeypatch.setattr("microct_analysis.stages.landmarks_orientation.extract_surface_mesh", fake_surface_mesh)
+
+    _voxel, confidence, evidence = _femoral_surface_position(
+        {"id": "intercondylar_notch"}, np.ones((2, 2, 2), dtype=bool), (1.0, 1.0, 1.0), "notch_depth_maximum"
+    )
+
+    assert confidence == "low"
+    assert "implausibly proximal" in evidence
 
 
 def test_landmark_confidence_names_implausible_growth_plate_not_orientation() -> None:

@@ -16,6 +16,7 @@ class IntakeArtifacts:
 @dataclass(frozen=True)
 class SegmentationArtifacts:
     labels: str = "segmentation/labels.nii.gz"
+    filtered: str = "segmentation/filtered.nii.gz"
     structure_assignments: str = "segmentation/structure_assignments.json"
     seeds: str = "segmentation/seeds.json"
     metadata: str = "segmentation/metadata.json"

@@ -78,12 +78,14 @@ def test_synthetic_volume_runs_full_pipeline(tmp_path: Path) -> None:
         output_dir=str(tmp_path / "segmentation"),
     )
     assert segmentation["status"] == "ready"
+    assert Path(segmentation["artifacts"]["filtered"]).exists()
     assignments = json.loads((tmp_path / "segmentation" / "structure_assignments.json").read_text())
     assert assignments["assignments"] == {"femur": 1, "tibia": 2}
 
     landmark_report = run_landmarks_orientation(
         {
             "labels": segmentation["artifacts"]["labels"],
+            "filtered": segmentation["artifacts"]["filtered"],
             "structure_assignments": str(tmp_path / "segmentation" / "structure_assignments.json"),
             "spacing": [1.0, 1.0, 1.0],
         },

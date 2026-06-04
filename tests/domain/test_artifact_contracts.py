@@ -17,6 +17,7 @@ def test_segmentation_artifacts_include_full_stage_contract() -> None:
     artifacts = SegmentationArtifacts()
 
     assert artifacts.labels == "segmentation/labels.nii.gz"
+    assert artifacts.filtered == "segmentation/filtered.nii.gz"
     assert artifacts.structure_assignments == "segmentation/structure_assignments.json"
     assert artifacts.seeds == "segmentation/seeds.json"
     assert artifacts.metadata == "segmentation/metadata.json"

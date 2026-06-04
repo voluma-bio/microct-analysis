@@ -253,6 +253,7 @@ def _run_legacy_in_memory(
     flags = threshold_flags + (["workflow-threshold-discrepancy"] if threshold_observations else []) + confounders + sanity_warnings
 
     save_nifti(labels.data, output_root / "labels.nii.gz", scan.affine)
+    save_nifti(filtered, output_root / "filtered.nii.gz", scan.affine)
     result = SegmentationResult(labels, assignments, threshold_observations, "high")
     _write_json(
         output_root / "structure_assignments.json",
@@ -458,6 +459,7 @@ def _run_full_pipeline(
         else:
             _cleanup_components_artifact(output_root)
             save_nifti(bone_labels.volume, output_root / "labels.nii.gz", scan.affine)
+            save_nifti(filtered, output_root / "filtered.nii.gz", scan.affine)
             _write_bone_masks(output_root / "masks", bone_labels, scan)
         _write_json(
             output_root / "structure_assignments.json",
@@ -980,6 +982,9 @@ def _cleanup_ready_artifacts(output_root: Path) -> None:
     labels_path = output_root / "labels.nii.gz"
     if labels_path.exists():
         labels_path.unlink()
+    filtered_path = output_root / "filtered.nii.gz"
+    if filtered_path.exists():
+        filtered_path.unlink()
     masks_dir = output_root / "masks"
     if masks_dir.exists():
         shutil.rmtree(masks_dir)
@@ -1105,6 +1110,7 @@ def _report(*, status: str, confidence: str, evidence: str, output_root: Path, f
         "recommended_action": recommended_action,
         "artifacts": {
             "labels": str(output_root / "labels.nii.gz"),
+            "filtered": str(output_root / "filtered.nii.gz"),
             "structure_assignments": str(output_root / "structure_assignments.json"),
             "seeds": str(output_root / "seeds.json"),
             "screenshots": [screenshot_path("segmentation", 1)],

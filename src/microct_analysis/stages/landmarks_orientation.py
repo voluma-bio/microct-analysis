@@ -379,7 +379,7 @@ def _femoral_surface_position(
             si_range = np.ptp(vertices[:, 0])
             si_min = np.min(vertices[:, 0])
             relative_position = (point[0] - si_min) / si_range if si_range > 0 else 0.5
-            if relative_position > 0.6:
+            if relative_position > 0.4:
                 confidence = "low"
                 note += "; notch position is implausibly proximal (shaft region)"
         voxel = tuple(float(point[index]) / label_volume.spacing[index] for index in range(3))
@@ -613,11 +613,11 @@ def _recommended_action(confidence: str) -> str:
 
 
 def _load_intensity_volume(segmentation_artifacts: dict[str, str], labels: np.ndarray | None) -> np.ndarray | None:
-    for key in ("intensity", "intensity_volume", "volume"):
+    for key in ("intensity", "intensity_volume", "filtered", "volume"):
         loaded = _load_label_volume(segmentation_artifacts.get(key))
         if loaded is not None:
             return loaded
-    return labels.astype(np.float32) if labels is not None else None
+    return None
 
 
 def _load_label_volume(path: str | None) -> np.ndarray | None:
