@@ -3,6 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import nibabel as nib
+import numpy as np
+
+from microct_analysis.stages.measurement import _load_roi_masks
 from microct_analysis.stages.roi import compute_roi_boundary, run_roi
 
 
@@ -37,16 +41,39 @@ def test_run_roi_writes_definitions_masks_and_overlay_contract(tmp_path: Path) -
         )
     )
     frame_path.write_text(json.dumps({"target_plane": "frontal"}))
+    labels = np.zeros((30, 30, 30), dtype=np.uint8)
+    labels_path = tmp_path / "labels.npy"
+    np.save(labels_path, labels)
 
     report = run_roi(
         {"positions": str(positions_path), "orientation_frame": str(frame_path)},
-        {"labels": "segmentation/labels.nii.gz"},
+        {"labels": str(labels_path)},
         [{"id": "tibia_roi", "growth_plate_landmark": "growth_plate", "growth_plate_offsets_um": {"z": 25}, "size_um": {"z": 100, "y": 200, "x": 400}}],
         output_dir=str(tmp_path / "roi"),
     )
 
     payload = json.loads((tmp_path / "roi" / "roi_definitions.json").read_text())
+    mask_metadata = json.loads((tmp_path / "roi" / "masks" / "tibia_roi.json").read_text())
+    mask_file = Path(mask_metadata["mask_file"])
+    mask = np.asarray(nib.load(str(mask_file)).get_fdata(), dtype=bool)
     assert report["confidence"] == "high"
     assert report["artifacts"]["roi_masks"]["tibia_roi"].endswith("roi/masks/tibia_roi.json")
+    assert mask_file.name == "tibia_roi.nii.gz"
+    assert mask.shape == labels.shape
+    assert mask_metadata["bounds"] == {"z": [7.0, 27.0], "y": [3.0, 23.0], "x": [4.0, 24.0]}
     assert payload["overlay"]["scene"] == "persistent"
     assert payload["rois"][0]["bounds_voxel"] == [[7.0, 27.0], [3.0, 23.0], [4.0, 24.0]]
+
+
+def test_measurement_loads_roi_mask_metadata_nifti(tmp_path: Path) -> None:
+    mask = np.zeros((4, 4, 4), dtype=np.uint8)
+    mask[1:3, 1:3, 1:3] = 1
+    mask_path = tmp_path / "roi_mask.nii.gz"
+    nib.save(nib.Nifti1Image(mask, np.eye(4)), str(mask_path))
+    metadata_path = tmp_path / "roi_mask.json"
+    metadata_path.write_text(json.dumps({"mask_file": str(mask_path)}))
+
+    masks = _load_roi_masks({"roi_masks": {"trabecular_roi": str(metadata_path)}})
+
+    assert masks["trabecular_roi"].dtype == bool
+    assert np.array_equal(masks["trabecular_roi"], mask.astype(bool))

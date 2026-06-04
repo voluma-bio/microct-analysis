@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import nibabel as nib
 import numpy as np
 
 from microct_analysis.domain.artifact_contracts import screenshot_path
@@ -42,7 +43,9 @@ def run_roi(
         if mask is None:
             payload: Any = {"roi_id": roi["id"], "bounds_voxel": roi["bounds_voxel"], "source_labels": segmentation_artifacts}
         else:
-            payload = mask.astype(bool).tolist()
+            nifti_path = masks_root / f"{roi['id']}.nii.gz"
+            nib.save(nib.Nifti1Image(mask.astype(np.uint8), np.eye(4)), str(nifti_path))
+            payload = _mask_metadata(definition, roi, nifti_path, segmentation_artifacts)
             roi["mask_source"] = "trabecular_morphology" if _is_trabecular_roi(definition) else "bounds_voxel"
         _write_json(mask_path, payload)
         roi_masks[roi["id"]] = str(mask_path)
@@ -147,6 +150,24 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
+def _mask_metadata(
+    definition: dict[str, Any], roi: dict[str, Any], mask_path: Path, segmentation_artifacts: dict[str, str]
+) -> dict[str, Any]:
+    return {
+        "roi_id": roi["id"],
+        "mask_file": str(mask_path),
+        "bounds": {
+            "z": roi["bounds_voxel"][0],
+            "y": roi["bounds_voxel"][1],
+            "x": roi["bounds_voxel"][2],
+        },
+        "bounds_voxel": roi["bounds_voxel"],
+        "anchor": roi["anchor_landmark"],
+        "source": dict(definition),
+        "source_labels": segmentation_artifacts,
+    }
+
+
 def _roi_mask_from_definition(
     definition: dict[str, Any],
     roi: dict[str, Any],
@@ -194,4 +215,6 @@ def _load_array(path: str | None) -> np.ndarray | None:
     if file_path.suffix == ".json":
         payload = json.loads(file_path.read_text())
         return np.asarray(payload) if isinstance(payload, list) else None
+    if file_path.name.endswith((".nii", ".nii.gz")):
+        return np.asarray(nib.load(str(file_path)).get_fdata())
     return None

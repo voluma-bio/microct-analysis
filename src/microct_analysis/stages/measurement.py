@@ -126,20 +126,29 @@ def _load_landmarks(landmark_artifacts: dict[str, str]) -> dict[str, Any]:
     return positions
 
 
-def _load_roi_masks(roi_artifacts: dict[str, str]) -> dict[str, np.ndarray]:
+def _load_roi_masks(roi_artifacts: dict[str, Any]) -> dict[str, np.ndarray]:
     masks: dict[str, np.ndarray] = {}
     for key, path in roi_artifacts.items():
-        if key == "masks" and Path(path).exists():
-            payload = _load_json(path)
+        if key in {"masks", "roi_masks"}:
+            payload = path if isinstance(path, dict) else _load_json(path if Path(path).exists() else None)
             for name, mask_path in payload.items():
-                array = _load_array(str(mask_path))
+                array = _load_roi_mask(str(mask_path))
                 if array is not None:
                     masks[str(name)] = array.astype(bool)
         elif key.endswith("_mask"):
-            array = _load_array(path)
+            array = _load_roi_mask(path)
             if array is not None:
                 masks[key.removesuffix("_mask")] = array.astype(bool)
     return masks
+
+
+def _load_roi_mask(path: str) -> np.ndarray | None:
+    if Path(path).suffix == ".json":
+        payload = _load_json(path)
+        if "mask_file" in payload:
+            return _load_array(str(payload["mask_file"]))
+        return np.asarray(payload) if isinstance(payload, list) else None
+    return _load_array(path)
 
 
 def _collect_overrides(measurements: list[dict[str, Any]], rois: list[dict[str, Any]]) -> list[OverrideRecord]:
