@@ -1,0 +1,27 @@
+{
+  "specimen": "oa6_1rk",
+  "session": "microct-oa6-1rk-003",
+  "spacing_mm": [
+    0.0105,
+    0.0105,
+    0.0105
+  ],
+  "growth_plate": {
+    "articular_slice": 207,
+    "golden_slice": 278,
+    "tolerance_slices": 5,
+    "iioc_height_slices": 71
+  },
+  "notch": {
+    "groove_position": [
+      274.0,
+      151.5,
+      217.0
+    ],
+    "dfl_range_mm": [
+      2.0,
+      2.6
+    ],
+    "min_notch_groove_si_gap": 50
+  }
+}

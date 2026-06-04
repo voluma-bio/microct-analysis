@@ -68,7 +68,7 @@ def find_saddle_point(vertices: np.ndarray, *, surface_region: str = "anterior_d
 
 
 def find_notch_depth(vertices: np.ndarray, *, surface_region: str = "posterior_intercondylar") -> np.ndarray:
-    """Find the deepest posterior intercondylar notch point."""
+    """Find the posterior intercondylar notch roof via scored concavity."""
 
     if surface_region != "posterior_intercondylar":
         raise ValueError("only surface_region='posterior_intercondylar' is supported")
@@ -77,21 +77,76 @@ def find_notch_depth(vertices: np.ndarray, *, surface_region: str = "posterior_i
     if posterior.size == 0:
         raise ValueError("could not identify posterior surface vertices")
 
-    si_cutoff = np.median(posterior[:, _SI_AXIS])
-    distal_posterior = posterior[posterior[:, _SI_AXIS] <= si_cutoff]
-    if distal_posterior.size == 0:
-        raise ValueError("could not identify distal posterior surface vertices")
+    si_limit = _condylar_si_limit(posterior)
+    condylar = posterior[posterior[:, _SI_AXIS] <= si_limit]
+    if len(condylar) < 4:
+        raise ValueError("could not identify condylar posterior vertices")
+
+    tree = KDTree(condylar)
+    neighbor_count = min(12, len(condylar))
+    _distances, neighbor_indices = tree.query(condylar, k=neighbor_count)
+    if neighbor_count == 1:
+        local_ml_curvature = np.zeros(len(condylar), dtype=float)
+        local_ap_recession = np.zeros(len(condylar), dtype=float)
+    else:
+        neighbor_ml = condylar[neighbor_indices, _ML_AXIS]
+        local_ml_curvature = np.abs(condylar[:, _ML_AXIS] - np.mean(neighbor_ml, axis=1))
+        neighbor_ap = condylar[neighbor_indices, _AP_AXIS]
+        local_ap_recession = np.mean(neighbor_ap, axis=1) - condylar[:, _AP_AXIS]
 
     ml_midline = np.median(points[:, _ML_AXIS])
-    ml_span = np.ptp(points[:, _ML_AXIS])
-    tolerance = max(ml_span * 0.1, np.finfo(float).eps)
-    midline = distal_posterior[np.abs(distal_posterior[:, _ML_AXIS] - ml_midline) <= tolerance]
-    if midline.size == 0:
-        distances = np.abs(distal_posterior[:, _ML_AXIS] - ml_midline)
-        keep_count = max(1, min(len(distal_posterior), len(points) // 20))
-        midline = distal_posterior[np.argsort(distances)[:keep_count]]
+    midline_distance = np.abs(condylar[:, _ML_AXIS] - ml_midline)
+    ap_recession = local_ap_recession + _local_ap_recession(condylar)
+    superior_bonus = _normalize(condylar[:, _SI_AXIS])
 
-    return midline[int(np.argmax(midline[:, _SI_AXIS]))].copy()
+    score = (
+        _normalize(midline_distance)
+        + _normalize(local_ml_curvature)
+        - (1.5 * _normalize(ap_recession))
+        - (2.0 * superior_bonus)
+    )
+    return condylar[int(np.argmin(score))].copy()
+
+
+def _local_ap_recession(condylar: np.ndarray) -> np.ndarray:
+    si = condylar[:, _SI_AXIS]
+    n_bins = max(10, min(50, len(condylar) // 500))
+    bin_edges = np.linspace(si.min(), si.max(), n_bins + 1)
+    recession = np.zeros(len(condylar), dtype=float)
+    for index in range(n_bins):
+        upper = si <= bin_edges[index + 1] if index == n_bins - 1 else si < bin_edges[index + 1]
+        in_bin = (si >= bin_edges[index]) & upper
+        if np.any(in_bin):
+            recession[in_bin] = np.percentile(condylar[in_bin, _AP_AXIS], 95) - condylar[in_bin, _AP_AXIS]
+    return recession
+
+
+def _condylar_si_limit(posterior: np.ndarray, *, ml_span_fraction: float = 0.5) -> float:
+    """Estimate the SI boundary between condylar region and shaft."""
+
+    si = posterior[:, _SI_AXIS]
+    n_bins = max(10, min(50, len(posterior) // 500))
+    bin_edges = np.linspace(si.min(), si.max(), n_bins + 1)
+
+    ml_spans = np.zeros(n_bins)
+    valid_bins = np.zeros(n_bins, dtype=bool)
+    for index in range(n_bins):
+        upper = si <= bin_edges[index + 1] if index == n_bins - 1 else si < bin_edges[index + 1]
+        in_bin = posterior[(si >= bin_edges[index]) & upper]
+        if len(in_bin) >= 3:
+            ml_spans[index] = np.ptp(in_bin[:, _ML_AXIS])
+            valid_bins[index] = True
+
+    peak_span = ml_spans.max()
+    if peak_span == 0:
+        return float(si.max())
+
+    peak_bin = int(np.argmax(ml_spans))
+    threshold = peak_span * ml_span_fraction
+    for index in range(peak_bin + 1, n_bins):
+        if valid_bins[index] and ml_spans[index] < threshold:
+            return float(bin_edges[index])
+    return float(si.max())
 
 
 def find_condylar_edge(

@@ -13,6 +13,7 @@ from skimage.filters import threshold_otsu
 from microct_analysis.domain.artifact_contracts import screenshot_path
 from microct_analysis.processing.orientation import center_volume, pca_orient
 from microct_analysis.processing.surface import (
+    _condylar_si_limit,
     extract_surface_mesh,
     find_condylar_edge,
     find_notch_depth,
@@ -376,10 +377,11 @@ def _femoral_surface_position(
         confidence = "high"
         note = f"surface feature detected from {len(vertices)} mesh vertices"
         if landmark_id == "intercondylar_notch":
+            posterior = vertices[vertices[:, 1] > np.median(vertices[:, 1])]
             si_range = np.ptp(vertices[:, 0])
             si_min = np.min(vertices[:, 0])
             relative_position = (point[0] - si_min) / si_range if si_range > 0 else 0.5
-            if relative_position > 0.4:
+            if point[0] > _condylar_si_limit(posterior) or relative_position > 0.95:
                 confidence = "low"
                 note += "; notch position is implausibly proximal (shaft region)"
         voxel = tuple(float(point[index]) / label_volume.spacing[index] for index in range(3))
@@ -403,7 +405,7 @@ def _tibial_slice_position(
     landmark_id = str(definition.get("id") or definition.get("name"))
     params = definition.get("geometric_params") if isinstance(definition.get("geometric_params"), dict) else {}
     articular = _articular_slice(counts, float(params.get("area_threshold_pct", 20)))
-    growth = _growth_plate_slice(mask, counts, articular, params, intensity)
+    growth, growth_source = _growth_plate_slice_result(mask, counts, articular, params, intensity)
     measurement_slice = _measurement_slice(mask, articular, growth)
     if landmark_id == "articular_surface_proximal" or params.get("surface") == "articular":
         z_index = articular
@@ -411,10 +413,11 @@ def _tibial_slice_position(
     if landmark_id == "growth_plate_proximal" or params.get("detection") == "bone_fill_ratio_drop":
         confidence = "high" if growth is not None else "low"
         z_index = growth if growth is not None else int(coords[:, 0].max())
+        validation = "sustained-drop validated" if growth_source == "intensity" else "label-area fallback"
         return (
             _slice_center(mask, z_index),
             confidence,
-            f"growth plate boundary at slice {z_index}; proximal tie-break applied",
+            f"growth plate boundary at slice {z_index}; {validation}",
         )
     if method == "slice_bone_extent" or landmark_id in {"medial_tibial_condyle_edge", "lateral_tibial_condyle_edge"}:
         direction = str(params.get("direction") or ("lateral" if "lateral" in landmark_id else "medial"))
@@ -453,16 +456,27 @@ def _growth_plate_slice(
     params: dict[str, Any],
     intensity: np.ndarray | None = None,
 ) -> int | None:
+    result, _source = _growth_plate_slice_result(mask, counts, articular, params, intensity)
+    return result
+
+
+def _growth_plate_slice_result(
+    mask: np.ndarray,
+    counts: np.ndarray,
+    articular: int,
+    params: dict[str, Any],
+    intensity: np.ndarray | None = None,
+) -> tuple[int | None, str | None]:
     if str(params.get("detection", "")) == "bone_fill_ratio_drop" and intensity is not None:
         result = _growth_plate_slice_intensity(mask, intensity, articular, params)
         if result is not None:
-            return result
+            return result, "intensity"
 
     min_consecutive = int(params.get("min_consecutive_above", 5))
     # Label-only fallback: first pronounced area drop after a stable tibial plateau.
     max_count = float(counts.max())
     if max_count == 0:
-        return None
+        return None, None
     above_seen = 0
     drop_threshold = max_count * 0.5
     candidates: list[int] = []
@@ -472,7 +486,7 @@ def _growth_plate_slice(
             continue
         if above_seen >= min_consecutive and counts[z_index] > 0:
             candidates.append(z_index)
-    return min(candidates) if candidates else None
+    return (min(candidates), "label_area") if candidates else (None, None)
 
 
 def _growth_plate_slice_intensity(
@@ -484,26 +498,54 @@ def _growth_plate_slice_intensity(
     bone_threshold = _derive_bone_threshold(mask, intensity)
     fill_threshold = float(params.get("fill_ratio_threshold_pct", 50)) / 100.0
     min_consecutive = int(params.get("min_consecutive_above", 5))
-    above_seen = 0
-    candidates: list[int] = []
+    min_sustained = int(params.get("min_sustained_below", 3))
 
+    ratios = np.full(mask.shape[0], np.nan, dtype=float)
     for z_index in range(articular, mask.shape[0]):
         slice_mask = mask[z_index]
         total_label = int(slice_mask.sum())
         if total_label == 0:
-            above_seen = 0
             continue
 
         bone_count = int(((intensity[z_index] > bone_threshold) & slice_mask).sum())
-        ratio = bone_count / total_label
-        if ratio >= fill_threshold:
+        ratios[z_index] = bone_count / total_label
+
+    return _growth_plate_slice_from_ratios(ratios, articular, fill_threshold, min_consecutive, min_sustained)
+
+
+def _growth_plate_slice_from_ratios(
+    ratios: np.ndarray,
+    articular: int,
+    fill_threshold: float,
+    min_consecutive: int,
+    min_sustained: int,
+) -> int | None:
+    above_seen = 0
+    for z_index in range(articular, len(ratios)):
+        if np.isnan(ratios[z_index]):
+            above_seen = 0
+            continue
+        if ratios[z_index] >= fill_threshold:
             above_seen += 1
         else:
-            if above_seen >= min_consecutive:
-                candidates.append(z_index)
+            if above_seen >= min_consecutive and _is_sustained_drop(ratios, z_index, fill_threshold, min_sustained):
+                return z_index
             above_seen = 0
+    return None
 
-    return min(candidates) if candidates else None
+
+def _is_sustained_drop(ratios: np.ndarray, start: int, threshold: float, n_required: int) -> bool:
+    below_count = 0
+    for z_index in range(start, len(ratios)):
+        if np.isnan(ratios[z_index]):
+            continue
+        if ratios[z_index] < threshold:
+            below_count += 1
+            if below_count >= n_required:
+                return True
+        else:
+            return False
+    return below_count > 0
 
 
 def _derive_bone_threshold(mask: np.ndarray, intensity: np.ndarray) -> float:
