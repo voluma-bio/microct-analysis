@@ -364,9 +364,9 @@ def _femoral_surface_position(
         landmark_id = str(definition.get("id") or definition.get("name"))
         params = definition.get("geometric_params") if isinstance(definition.get("geometric_params"), dict) else {}
         if method == "saddle_point" or landmark_id == "intercondylar_groove_midpoint":
-            point = find_saddle_point(vertices, surface_region=str(params.get("surface_region", "anterior_distal")))
+            point, _scores, _vertices = find_saddle_point(vertices, surface_region=str(params.get("surface_region", "anterior_distal")))
         elif method == "notch_depth_maximum" or landmark_id == "intercondylar_notch":
-            point = find_notch_depth(vertices, surface_region=str(params.get("surface_region", "posterior_intercondylar")))
+            point, _scores, _vertices = find_notch_depth(vertices, surface_region=str(params.get("surface_region", "posterior_intercondylar")))
         elif method == "surface_extreme" or landmark_id in {"lateral_condylar_edge", "medial_condylar_edge"}:
             direction = str(params.get("direction") or ("lateral" if "lateral" in landmark_id else "medial"))
             point = find_condylar_edge(

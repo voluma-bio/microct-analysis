@@ -44,19 +44,27 @@ def test_find_saddle_point_returns_anterior_distal_midline_groove_vertex() -> No
     vertices = _dumbbell_vertices()
     expected = np.array([2.5, -2.7, 0.0])
 
-    saddle = find_saddle_point(vertices)
+    saddle, scores, verts = find_saddle_point(vertices)
 
     assert np.allclose(saddle, expected)
+
+    assert isinstance(scores, np.ndarray)
+    assert len(scores) > 0
+    assert np.array_equal(saddle, verts[int(np.argmin(scores))])
 
 
 def test_find_notch_depth_returns_distal_posterior_midline_notch_not_shaft() -> None:
     vertices = _notch_fixture_vertices()
 
-    notch = find_notch_depth(vertices)
+    notch, scores, verts = find_notch_depth(vertices)
 
     assert np.allclose(notch, [4.0, 2.5, 0.0])
     assert notch[0] < 5.0
     assert notch[2] == 0.0
+
+    assert isinstance(scores, np.ndarray)
+    assert len(scores) > 0
+    assert np.array_equal(notch, verts[int(np.argmin(scores))])
 
 
 def test_notch_oa6_1rk_finds_intercondylar_concavity() -> None:
@@ -68,7 +76,7 @@ def test_notch_oa6_1rk_finds_intercondylar_concavity() -> None:
     vertices[:, 1] += int(data["y_offset"])
     vertices[:, 2] += int(data["x_offset"])
 
-    notch = find_notch_depth(vertices)
+    notch, _scores, _verts = find_notch_depth(vertices)
     groove = np.array(golden["notch"]["groove_position"])
     spacing = np.array(golden["spacing_mm"])
     dfl = float(np.sqrt(np.sum(((notch - groove) * spacing) ** 2)))

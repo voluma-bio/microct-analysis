@@ -289,7 +289,7 @@ def test_femoral_notch_outside_distal_window_is_low_confidence(monkeypatch) -> N
     monkeypatch.setattr("microct_analysis.stages.landmarks_orientation.extract_surface_mesh", fake_surface_mesh)
     monkeypatch.setattr(
         "microct_analysis.stages.landmarks_orientation.find_notch_depth",
-        lambda _vertices, *, surface_region: np.array([6.0, 3.0, 0.0]),
+        lambda _vertices, *, surface_region: (np.array([6.0, 3.0, 0.0]), np.array([0.0]), np.array([[6.0, 3.0, 0.0]])),
     )
     monkeypatch.setattr("microct_analysis.stages.landmarks_orientation._condylar_si_limit", lambda _posterior: 4.0)
 

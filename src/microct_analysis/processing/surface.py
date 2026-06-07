@@ -64,7 +64,7 @@ def find_saddle_point(vertices: np.ndarray, *, surface_region: str = "anterior_d
     superior_bonus = _normalize(distal[:, _SI_AXIS])
 
     score = _normalize(midline_distance) + _normalize(local_ml_curvature) - (2.0 * superior_bonus)
-    return distal[int(np.argmin(score))].copy()
+    return distal[int(np.argmin(score))].copy(), score, distal
 
 
 def find_notch_depth(vertices: np.ndarray, *, surface_region: str = "posterior_intercondylar") -> np.ndarray:
@@ -105,7 +105,7 @@ def find_notch_depth(vertices: np.ndarray, *, surface_region: str = "posterior_i
         - (1.5 * _normalize(ap_recession))
         - (2.0 * superior_bonus)
     )
-    return condylar[int(np.argmin(score))].copy()
+    return condylar[int(np.argmin(score))].copy(), score, condylar
 
 
 def _local_ap_recession(condylar: np.ndarray) -> np.ndarray:
