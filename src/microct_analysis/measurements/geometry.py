@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import numpy as np
 from typing import Any
 
 from .models import MeasurementResult, MeasurementSpec
@@ -83,15 +84,32 @@ def compute_boundary_slice_count(spec: MeasurementSpec, landmarks: dict[str, Any
 
 
 def compute_frontal_projected_width(spec: MeasurementSpec, landmarks: dict[str, Any], spacing: tuple[float, ...]) -> MeasurementResult:
-    """Compute medial-lateral width on the frontal projection."""
+    """Compute medial-lateral width on the frontal projection using landmark-derived ML vector."""
 
     if not spec.points or len(spec.points) != 2:
         raise ValueError(f"frontal-projected-width measurement {spec.name} requires exactly two points")
     first_name, second_name = spec.points
     first = _point(landmarks, first_name)
     second = _point(landmarks, second_name)
-    axis = _projection_axis(spec)
-    value = abs(second[axis] - first[axis]) * _axis_spacing(spacing, axis)
+
+    # Use landmark-derived ML vector — no silent fallback
+    derived_frame = None
+    if isinstance(landmarks.get("_derived_frame"), dict):
+        derived_frame = landmarks["_derived_frame"]
+
+    if derived_frame is not None and "ml_vector" in derived_frame:
+        ml_vector = np.asarray(derived_frame["ml_vector"], dtype=float)
+        ml_norm = float(np.linalg.norm(ml_vector))
+        if ml_norm == 0:
+            raise ValueError("landmark-derived ML vector has zero length")
+        ml_unit = ml_vector / ml_norm
+        delta_physical = np.array([
+            (second[i] - first[i]) * _axis_spacing(spacing, i) for i in range(len(first))
+        ])
+        value = abs(float(np.dot(delta_physical, ml_unit)))
+    else:
+        raise ValueError("landmark-derived ML vector required for frontal projected width")
+
     return MeasurementResult(
         spec.name,
         value,
@@ -102,8 +120,7 @@ def compute_frontal_projected_width(spec: MeasurementSpec, landmarks: dict[str, 
             "spacing": list(spacing),
             "domain": spec.domain,
             "method": "frontal_projected_width",
-            "projection_axis": axis,
-            "ignored_axes": [i for i in range(len(first)) if i != axis],
+            "projection_method": "landmark_derived_ml_vector",
         },
         f"measurements/qc/{spec.name}.json",
     )
@@ -121,7 +138,7 @@ def compute_ratio(spec: MeasurementSpec, component_results: dict[str, Measuremen
 
 
 def compute_slice_count(spec: MeasurementSpec, landmarks: dict[str, Any], spacing: tuple[float, ...]) -> MeasurementResult:
-    """Compute distance from slice count × slice thickness."""
+    """Compute distance from slice count x slice thickness."""
 
     if not spec.boundaries or len(spec.boundaries) != 2:
         raise ValueError(f"slice-count measurement {spec.name} requires exactly two boundaries")

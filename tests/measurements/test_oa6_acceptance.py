@@ -29,6 +29,7 @@ def test_oa6_femoral_surface_measurements_and_ratio_match_published_acceptance()
         "intercondylar_notch": [2.29, 0.0, 0.0],
         "lateral_condylar_edge": [0.0, 2.0, 3.48],
         "medial_condylar_edge": [0.0, -4.0, 0.0],
+        "_derived_frame": {"ml_vector": [0.0, 0.0, 1.0]},
     }
     results = _run_specs(
         _oa6_specs({"distal_femoral_length", "distal_femoral_width", "distal_femoral_ratio"}),
@@ -43,7 +44,7 @@ def test_oa6_femoral_surface_measurements_and_ratio_match_published_acceptance()
     assert _within_pct(width.value, 3.48)
     assert _within_pct(ratio.value, 1.520)
     assert width.inputs["method"] == "frontal_projected_width"
-    assert width.inputs["projection_axis"] == 2
+    assert width.inputs["projection_method"] == "landmark_derived_ml_vector"
 
 
 def test_oa6_tibial_slice_measurements_are_domain_routed_and_exact_slice_multiple() -> None:
