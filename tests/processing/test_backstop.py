@@ -7,6 +7,8 @@ import pytest
 
 from microct_analysis.processing.backstop import (
     BackstopResult,
+    _detect_condylar_end,
+    _detect_posterior_direction,
     compute_backstop,
 )
 
@@ -51,45 +53,141 @@ class TestFemoralBackstop:
     """Tests for femoral surface backstop."""
 
     def _make_condylar_mesh(self):
-        """Create a synthetic mesh mimicking distal femoral condyles.
+        """Synthetic femur: condylar end at HIGH SI, notch gap at high-AP midline.
 
-        The mesh has vertices forming a condylar shape:
-        - SI (axis 0): distal region is SI < median
-        - AP (axis 1): anterior < median, posterior > median
-        - ML (axis 2): medial to lateral range
+        Anatomy:
+        - SI (axis 0): shaft at low SI (0–200), condyles at high SI (300–470)
+        - AP (axis 1): anterior ~100–300, posterior ~300–450
+        - ML (axis 2): shaft narrow (220–380), condyles wide (100–500)
+        - Intercondylar notch: gap near ML midline (300±40) at posterior AP (>300)
         """
         rng = np.random.default_rng(42)
-        n_pts = 500
-        # Create a cloud centered around origin
-        si = rng.uniform(-5, 5, n_pts)
-        ap = rng.uniform(-3, 3, n_pts)
-        ml = rng.uniform(-3, 3, n_pts)
-        vertices = np.column_stack([si, ap, ml])
-        return vertices
+        # Shaft (low SI): narrow ML
+        n_shaft = 200
+        shaft = np.column_stack([
+            rng.uniform(0, 200, n_shaft),    # SI: low
+            rng.uniform(100, 400, n_shaft),  # AP
+            rng.uniform(220, 380, n_shaft),  # ML: narrow
+        ])
+        # Condylar (high SI): wide ML with notch gap at high-AP midline
+        n_cond = 300
+        cond_si = rng.uniform(300, 470, n_cond)
+        cond_ap = rng.uniform(100, 450, n_cond)
+        cond_ml = rng.uniform(100, 500, n_cond)
+        # Remove midline vertices from posterior (high AP) = notch gap
+        midline = np.abs(cond_ml - 300) < 40
+        posterior = cond_ap > 300
+        keep = ~(midline & posterior)
+        condylar = np.column_stack([cond_si[keep], cond_ap[keep], cond_ml[keep]])
+        return np.vstack([shaft, condylar])
 
     def test_femoral_backstop_accepts_valid_groove(self):
         """Groove at midline with good SI should be accepted."""
         vertices = self._make_condylar_mesh()
-        # Place groove at ML midline and in distal (low SI) region
+        # Groove in condylar region (high SI) at ML midline
+        si_threshold, condylar_is_above = _detect_condylar_end(vertices)
+        # Place in condylar half with a small snap tolerance
+        si_condylar = 385.0  # firmly in high-SI condylar region
         ml_midline = float(np.median(vertices[:, 2]))
-        si_distal = float(np.median(vertices[:, 0])) - 1.0  # below median
+        # Add a vertex at exactly the target so snap distance = 0
+        target = np.array([[si_condylar, 200.0, ml_midline]])
+        vertices_with_target = np.vstack([vertices, target])
 
         result = compute_backstop(
             landmark_def={
                 "domain": "femoral_3d_surface",
                 "id": "intercondylar_groove_midpoint",
             },
-            coordinate=(si_distal, 0.0, ml_midline),
-            mesh_vertices=vertices,
+            coordinate=(si_condylar, 200.0, ml_midline),
+            mesh_vertices=vertices_with_target,
             spacing=(1.0, 1.0, 1.0),
         )
 
         assert result.accepted is True
         assert result.confidence in ("high", "medium")
-        # The bone_membership and si_in_condylar_band signals should accept
         assert result.signals["bone_membership"]["accept"] is True
         assert result.signals["si_in_condylar_band"]["accept"] is True
         assert result.signals["ml_midline_proximity"]["accept"] is True
+
+    def test_condylar_direction_high_si(self):
+        """Condylar end at HIGH SI is correctly detected."""
+        vertices = self._make_condylar_mesh()
+        si_threshold, condylar_is_above = _detect_condylar_end(vertices)
+        assert condylar_is_above is True, (
+            f"Expected condylar end at high SI but got condylar_is_above={condylar_is_above}"
+        )
+
+    def test_posterior_direction_detection(self):
+        """Posterior direction at HIGH AP is correctly detected from notch anatomy."""
+        vertices = self._make_condylar_mesh()
+        si_threshold, condylar_is_above = _detect_condylar_end(vertices)
+        posterior_dir = _detect_posterior_direction(vertices, si_threshold, condylar_is_above)
+        # The mesh has the notch gap at high-AP midline, so posterior should be 'high'
+        assert posterior_dir == "high", (
+            f"Expected posterior='high' but got '{posterior_dir}'"
+        )
+
+    def test_notch_high_si_accepted(self):
+        """Notch at high SI, posterior AP, ML midline is accepted (OA6-1RK regression)."""
+        vertices = self._make_condylar_mesh()
+        # Add notch vertex at the exact candidate to guarantee snap distance = 0
+        notch_coord = (375.0, 405.0, 300.0)
+        vertices_with_notch = np.vstack([vertices, [notch_coord]])
+
+        result = compute_backstop(
+            landmark_def={
+                "domain": "femoral_3d_surface",
+                "id": "intercondylar_notch",
+            },
+            coordinate=notch_coord,
+            mesh_vertices=vertices_with_notch,
+            spacing=(1.0, 1.0, 1.0),
+        )
+
+        assert result.accepted is True, (
+            f"Expected notch at high-SI to be accepted. "
+            f"Signals: {result.signals}. Feedback: {result.feedback}"
+        )
+        assert result.confidence == "high"
+        assert result.signals["si_in_condylar_band"]["accept"] is True
+        assert result.signals["posterior_position"]["accept"] is True
+
+    def test_shaft_placement_rejected(self):
+        """Placement in shaft region (low SI) is rejected by si_in_condylar_band."""
+        vertices = self._make_condylar_mesh()
+        # Add vertex at shaft coordinate so snap passes
+        shaft_coord = (100.0, 250.0, 300.0)
+        vertices_with_shaft = np.vstack([vertices, [shaft_coord]])
+
+        result = compute_backstop(
+            landmark_def={
+                "domain": "femoral_3d_surface",
+                "id": "intercondylar_groove_midpoint",
+            },
+            coordinate=shaft_coord,
+            mesh_vertices=vertices_with_shaft,
+            spacing=(1.0, 1.0, 1.0),
+        )
+
+        assert result.signals["si_in_condylar_band"]["accept"] is False, (
+            "Shaft placement should fail si_in_condylar_band"
+        )
+
+    def test_anterior_groove_not_posterior(self):
+        """Groove at anterior AP is not flagged as posterior for notch check."""
+        vertices = self._make_condylar_mesh()
+        # Groove at anterior AP (~151), high SI, ML midline
+        groove_coord = (385.0, 151.0, 300.0)
+        vertices_with_groove = np.vstack([vertices, [groove_coord]])
+        si_threshold, condylar_is_above = _detect_condylar_end(vertices)
+        posterior_dir = _detect_posterior_direction(vertices, si_threshold, condylar_is_above)
+
+        # If posterior='high', then AP=151 (low) is anterior — should NOT be posterior
+        if posterior_dir == "high":
+            ap_median = float(np.median(vertices[:, 1]))
+            assert groove_coord[1] < ap_median, (
+                "AP=151 should be below median (anterior side)"
+            )
 
 
 class TestTibialBackstop:

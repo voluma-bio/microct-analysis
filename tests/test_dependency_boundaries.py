@@ -20,7 +20,7 @@ PROCESSING_MODULES = {
     "microct_analysis.processing.dicom",
     "microct_analysis.processing.io",
     "microct_analysis.processing.morphology",
-    "microct_analysis.processing.orientation",
+    # "microct_analysis.processing.orientation",  # removed: PCA orientation retired
     "microct_analysis.processing.preprocess",
     "microct_analysis.processing.profiles",
     "microct_analysis.processing.resample",

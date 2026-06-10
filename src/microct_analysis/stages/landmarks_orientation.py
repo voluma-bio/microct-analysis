@@ -11,7 +11,6 @@ import numpy as np
 from skimage.filters import threshold_otsu
 
 from microct_analysis.domain.artifact_contracts import screenshot_path
-from microct_analysis.processing.orientation import center_volume, pca_orient
 from microct_analysis.processing.surface import (
     _condylar_si_limit,
     extract_surface_mesh,
@@ -39,33 +38,53 @@ def run_landmarks_orientation(
     intensity = _load_intensity_volume(segmentation_artifacts, labels)
     assignments = _load_json(segmentation_artifacts.get("structure_assignments"))
     spacing = _spacing_from_artifacts(segmentation_artifacts, assignments)
-    orientation_result = _orient_tibia(labels, intensity, assignments, workflow_landmarks, spacing, output_root)
+
+    # PCA orientation retired — landmarks are placed on unoriented labels.
+    # The visual landmarking stage (visual_landmarks.py) is the active path.
+    np.save(
+        output_root / "oriented_labels.npy",
+        labels if labels is not None else np.zeros((0, 0, 0), dtype=np.uint8),
+    )
 
     positions = {
         "landmarks": [
             _compute_landmark(
                 definition,
-                _labels_for_landmark(definition, labels, orientation_result),
+                labels,
                 assignments,
                 spacing,
-                force_low_confidence=_force_low_tibial_confidence(definition, orientation_result),
-                intensity=orientation_result.get("oriented_intensity"),
+                intensity=intensity,
             )
             for definition in workflow_landmarks
         ],
         "coordinate_system": "volume_zyx",
         "spacing": list(spacing),
         "source_artifacts": dict(segmentation_artifacts),
-        "orientation_applied": orientation_result["applied"],
+        "orientation_applied": False,
     }
 
     orientation_frame = compute_orientation_frame(positions["landmarks"], workflow_orientation)
-    _add_pca_orientation_provenance(orientation_frame, orientation_result, workflow_orientation)
+    pca_stub = {
+        "type": "not-applied",
+        "applied": False,
+        "confidence": "n/a",
+        "label": None,
+        "rotation_matrix": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+        "translation": [0.0, 0.0, 0.0],
+        "preserve_voxel_size": True,
+        "label_interpolation_order": 0,
+        "intensity_interpolation_order": 1,
+        "validation": "PCA orientation retired; use visual landmarking stage.",
+        "explanation": "PCA orientation retired; use visual landmarking stage.",
+    }
+    orientation_frame["pca_orientation"] = pca_stub
+    orientation_frame.setdefault("rotation_matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    orientation_frame.setdefault("translation", [0.0, 0.0, 0.0])
+    orientation_frame.setdefault("orientation_confidence", "n/a")
     confidence, evidence = _landmark_confidence(positions["landmarks"], orientation_frame)
     _write_json(output_root / "positions.json", positions)
     _write_json(output_root / "orientation_frame.json", orientation_frame)
-    _write_json(output_root / "transform_matrix.json", orientation_frame["pca_orientation"])
-    _write_orientation_report(output_root / "orientation_report.md", orientation_frame, orientation_result)
+    _write_json(output_root / "transform_matrix.json", pca_stub)
 
     return {
         "stage": "landmarks",
@@ -77,177 +96,9 @@ def run_landmarks_orientation(
             "orientation_frame": str(output_root / "orientation_frame.json"),
             "transform_matrix": str(output_root / "transform_matrix.json"),
             "oriented_labels": str(output_root / "oriented_labels.npy"),
-            "orientation_report": str(output_root / "orientation_report.md"),
             "screenshots": [screenshot_path("landmarks", 1)],
         },
     }
-
-
-def _orient_tibia(
-    labels: np.ndarray | None,
-    intensity: np.ndarray | None,
-    assignments: dict[str, Any],
-    workflow_landmarks: list[dict[str, Any]],
-    spacing: tuple[float, float, float],
-    output_root: Path,
-) -> dict[str, Any]:
-    tibial_requested = any(_is_tibial_landmark(definition) for definition in workflow_landmarks)
-    tibia_label = _tibia_label(assignments, workflow_landmarks)
-    identity = np.eye(3).round(8).tolist()
-    fallback = {
-        "applied": False,
-        "confidence": "low" if tibial_requested else "high",
-        "label": tibia_label,
-        "rotation_matrix": identity,
-        "translation": [0.0, 0.0, 0.0],
-        "oriented_labels": labels,
-        "oriented_intensity": intensity,
-        "validation": "PCA orientation was not attempted.",
-        "manual_instructions": _manual_orientation_instructions(),
-    }
-    if not tibial_requested:
-        np.save(
-            output_root / "oriented_labels.npy", labels if labels is not None else np.zeros((0, 0, 0), dtype=np.uint8)
-        )
-        return fallback | {"validation": "No tibial slice-boundary landmarks requested."}
-    if labels is None or tibia_label is None:
-        np.save(
-            output_root / "oriented_labels.npy", labels if labels is not None else np.zeros((0, 0, 0), dtype=np.uint8)
-        )
-        return fallback | {"validation": "Missing label volume or tibia label assignment."}
-
-    tibia_mask = labels == tibia_label
-    source_intensity = intensity if intensity is not None else tibia_mask.astype(np.float32)
-    try:
-        _centered_mask, translation = center_volume(tibia_mask.astype(np.uint8), spacing)
-        oriented_mask, oriented_intensity, rotation = pca_orient(tibia_mask.astype(np.uint8), source_intensity, spacing)
-        validation = _validate_orientation(oriented_mask, rotation, labels.shape)
-        if validation is not None:
-            raise ValueError(validation)
-        oriented_labels = np.array(labels, copy=True)
-        oriented_labels[labels == tibia_label] = 0
-        oriented_labels[oriented_mask != 0] = tibia_label
-        np.save(output_root / "oriented_labels.npy", oriented_labels)
-        return {
-            "applied": True,
-            "confidence": "high",
-            "label": tibia_label,
-            "rotation_matrix": np.asarray(rotation).round(8).tolist(),
-            "translation": np.asarray(translation).round(8).tolist(),
-            "oriented_labels": oriented_labels,
-            "oriented_intensity": oriented_intensity,
-            "validation": "PCA orientation passed shape, foreground, and rotation-matrix checks.",
-            "manual_instructions": None,
-        }
-    except Exception as exc:
-        np.save(output_root / "oriented_labels.npy", labels)
-        return fallback | {"validation": f"PCA orientation failed: {exc}"}
-
-
-def _validate_orientation(oriented_mask: np.ndarray, rotation: np.ndarray, shape: tuple[int, ...]) -> str | None:
-    if oriented_mask.shape != shape:
-        return "oriented tibia mask changed shape"
-    if np.count_nonzero(oriented_mask) < 3:
-        return "oriented tibia mask has fewer than three foreground voxels"
-    rotation_array = np.asarray(rotation, dtype=float)
-    if rotation_array.shape != (3, 3) or not np.all(np.isfinite(rotation_array)):
-        return "rotation matrix is not finite 3x3"
-    if not np.allclose(rotation_array @ rotation_array.T, np.eye(3), atol=1e-5):
-        return "rotation matrix is not orthonormal"
-    determinant = float(np.linalg.det(rotation_array))
-    if not np.isclose(abs(determinant), 1.0, atol=1e-5):
-        return "rotation matrix determinant is implausible"
-    return None
-
-
-def _labels_for_landmark(
-    definition: dict[str, Any], labels: np.ndarray | None, orientation_result: dict[str, Any]
-) -> np.ndarray | None:
-    if _is_tibial_landmark(definition) and orientation_result.get("applied"):
-        return orientation_result.get("oriented_labels")
-    return labels
-
-
-def _force_low_tibial_confidence(definition: dict[str, Any], orientation_result: dict[str, Any]) -> bool:
-    return _is_tibial_landmark(definition) and not bool(orientation_result.get("applied"))
-
-
-def _is_tibial_landmark(definition: dict[str, Any]) -> bool:
-    structure = str(
-        definition.get("structure") or definition.get("target_structure") or definition.get("bone") or ""
-    ).lower()
-    return str(definition.get("domain", "")) == "tibial_2d_slice" or "tibia" in structure
-
-
-def _tibia_label(assignments: dict[str, Any], workflow_landmarks: list[dict[str, Any]]) -> int | None:
-    for name in ("tibia", "Tibia"):
-        value = _label_for_structure(name, assignments, {})
-        if value is not None:
-            return value
-    for definition in workflow_landmarks:
-        if _is_tibial_landmark(definition):
-            return _label_for_structure("", assignments, definition)
-    return None
-
-
-def _add_pca_orientation_provenance(
-    orientation_frame: dict[str, Any], orientation_result: dict[str, Any], workflow_orientation: dict[str, Any]
-) -> None:
-    rotation = orientation_result["rotation_matrix"]
-    translation = orientation_result["translation"]
-    axes = {
-        "superior_inferior": rotation[0],
-        "medial_lateral": rotation[1],
-        "anterior_posterior": rotation[2],
-    }
-    orientation_frame["pca_orientation"] = {
-        "type": "pca-centered-rigid-orientation",
-        "applied": orientation_result["applied"],
-        "confidence": orientation_result["confidence"],
-        "tibia_label": orientation_result["label"],
-        "translation": translation,
-        "rotation_matrix": rotation,
-        "preserve_voxel_size": True,
-        "label_interpolation_order": 0,
-        "intensity_interpolation_order": 1,
-        "validation": orientation_result["validation"],
-        "explanation": explain_axis_changes(axes, str(workflow_orientation.get("target_plane", "frontal"))),
-    }
-    if orientation_result.get("manual_instructions"):
-        orientation_frame["pca_orientation"]["manual_instructions"] = orientation_result["manual_instructions"]
-    orientation_frame["rotation_matrix"] = rotation
-    orientation_frame["translation"] = translation
-    orientation_frame["orientation_confidence"] = orientation_result["confidence"]
-    orientation_frame["explanation"] = orientation_frame["pca_orientation"]["explanation"]
-
-
-def _manual_orientation_instructions() -> str:
-    return (
-        "PCA orientation could not be validated. Open the tibia label/intensity volume in a PyVista "
-        "interactive session, center the tibia on its bounding-box midpoint, rotate until the frontal "
-        "plane matches the SOP xz view, resample with voxel size preserved, then rerun landmark placement."
-    )
-
-
-def _write_orientation_report(
-    path: Path, orientation_frame: dict[str, Any], orientation_result: dict[str, Any]
-) -> None:
-    pca = orientation_frame["pca_orientation"]
-    lines = [
-        "# Landmark Orientation Report",
-        "",
-        f"Confidence: {pca['confidence']}",
-        f"Applied: {pca['applied']}",
-        f"Validation: {pca['validation']}",
-        "",
-        f"Explanation: {pca['explanation']}",
-        "",
-        f"Translation: {pca['translation']}",
-        f"Rotation matrix: {pca['rotation_matrix']}",
-    ]
-    if orientation_result.get("manual_instructions"):
-        lines.extend(["", "## User-assisted fallback", "", orientation_result["manual_instructions"]])
-    path.write_text("\n".join(lines) + "\n")
 
 
 def compute_orientation_frame(landmarks: list[dict[str, Any]], workflow_orientation: dict[str, Any]) -> dict[str, Any]:

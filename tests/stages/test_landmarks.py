@@ -64,6 +64,7 @@ def test_orientation_transform_records_axis_explanation_and_translation() -> Non
     assert "superior-inferior now follows" in frame["explanation"]
 
 
+@pytest.mark.skip(reason="PCA orientation retired in visual-landmarking")
 def test_pca_orientation_applied_when_tibia_label_present(tmp_path: Path) -> None:
     labels = np.zeros((9, 9, 9), dtype=np.uint8)
     labels[3:5, 1:4, 2:8] = 3
@@ -89,6 +90,7 @@ def test_pca_orientation_applied_when_tibia_label_present(tmp_path: Path) -> Non
     assert np.count_nonzero(oriented == 3) >= 3
 
 
+@pytest.mark.skip(reason="PCA orientation retired in visual-landmarking")
 def test_pca_orientation_fallback_marks_tibial_landmarks_low_confidence(tmp_path: Path) -> None:
     labels = np.zeros((5, 5, 5), dtype=np.uint8)
     labels[2, 2, 2] = 3
@@ -327,6 +329,7 @@ def test_landmark_confidence_names_implausible_growth_plate_not_orientation() ->
     assert "PCA orientation unavailable" not in evidence
 
 
+@pytest.mark.skip(reason="PCA orientation retired in visual-landmarking")
 def test_oriented_tibial_landmark_differs_from_unoriented_asymmetric_volume(tmp_path: Path) -> None:
     labels = np.zeros((9, 9, 9), dtype=np.uint8)
     labels[3:5, 1:4, 2:8] = 3

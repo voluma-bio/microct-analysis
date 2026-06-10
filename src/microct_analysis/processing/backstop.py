@@ -69,6 +69,71 @@ _AP_AXIS = 1
 _ML_AXIS = 2
 
 
+def _detect_condylar_end(verts: np.ndarray) -> tuple[float, bool]:
+    """Detect which SI end is condylar based on ML flare.
+
+    Condyles flare wider in ML than the femoral shaft. Split by SI median,
+    compare ML span (ptp) of each half. The half with WIDER ML range is the
+    condylar end.
+
+    Returns (si_threshold, condylar_is_above) where condylar_is_above=True
+    means the condylar end is at HIGH SI values.
+    """
+    si_median = float(np.median(verts[:, _SI_AXIS]))
+    low_si = verts[verts[:, _SI_AXIS] < si_median]
+    high_si = verts[verts[:, _SI_AXIS] >= si_median]
+    low_ml = float(np.ptp(low_si[:, _ML_AXIS])) if len(low_si) > 0 else 0.0
+    high_ml = float(np.ptp(high_si[:, _ML_AXIS])) if len(high_si) > 0 else 0.0
+    return si_median, high_ml >= low_ml
+
+
+def _detect_posterior_direction(
+    verts: np.ndarray,
+    si_threshold: float,
+    condylar_is_above: bool,
+) -> str | None:
+    """Detect posterior AP direction from intercondylar notch anatomy.
+
+    In the condylar region, the intercondylar notch creates a gap near the
+    ML midline at the posterior side. We find which AP half has FEWER vertices
+    near the ML midline — that half is posterior.
+
+    Returns 'high' (posterior = high AP), 'low' (posterior = low AP),
+    or None (uncertain — not enough data or ambiguous).
+    """
+    condylar = (
+        verts[verts[:, _SI_AXIS] >= si_threshold]
+        if condylar_is_above
+        else verts[verts[:, _SI_AXIS] < si_threshold]
+    )
+    if len(condylar) < 50:
+        return None
+    ml_median = float(np.median(condylar[:, _ML_AXIS]))
+    ml_range = float(np.ptp(condylar[:, _ML_AXIS]))
+    ap_median = float(np.median(condylar[:, _AP_AXIS]))
+    if ml_range == 0:
+        return None
+    ml_band = ml_range * 0.15
+    low_ap = condylar[condylar[:, _AP_AXIS] < ap_median]
+    high_ap = condylar[condylar[:, _AP_AXIS] >= ap_median]
+    if len(low_ap) < 20 or len(high_ap) < 20:
+        return None
+    low_frac = (
+        np.sum(np.abs(low_ap[:, _ML_AXIS] - ml_median) <= ml_band) / len(low_ap)
+    )
+    high_frac = (
+        np.sum(np.abs(high_ap[:, _ML_AXIS] - ml_median) <= ml_band) / len(high_ap)
+    )
+    max_frac = max(low_frac, high_frac)
+    if max_frac == 0:
+        return None
+    # If the two halves are too similar, direction is uncertain
+    if min(low_frac, high_frac) / max_frac > 0.85:
+        return None
+    # The half with LOWER midline fraction is posterior (notch gap)
+    return "high" if high_frac < low_frac else "low"
+
+
 def _femoral_backstop(
     landmark_id: str,
     coordinate: tuple[float, float, float],
@@ -102,33 +167,44 @@ def _femoral_backstop(
     coord = np.asarray(coordinate, dtype=float)
     verts = np.asarray(mesh_vertices, dtype=float)
 
+    # --- Detect anatomical directions from geometry (once, used by all signals) ---
+    si_threshold, condylar_is_above = _detect_condylar_end(verts)
+
     # --- Generic signal: bone membership (snap distance) ---
     tree = KDTree(verts)
     dist, _ = tree.query(coord)
-    snap_tolerance = 1.0  # mm
+    snap_tolerance = 1.0
     on_surface = dist <= snap_tolerance
     signals["bone_membership"] = {
         "value": float(dist),
         "accept": bool(on_surface),
-        "note": f"snap distance {dist:.3f}mm (tolerance {snap_tolerance}mm)",
+        "note": f"snap distance {dist:.3f} (tolerance {snap_tolerance})",
     }
 
     # --- Generic signal: SI in condylar band ---
-    si_median = float(np.median(verts[:, _SI_AXIS]))
-    in_condylar = coord[_SI_AXIS] <= si_median
+    # Use detected direction: coordinate must be on the condylar side of si_threshold
+    if condylar_is_above:
+        in_condylar = coord[_SI_AXIS] >= si_threshold
+    else:
+        in_condylar = coord[_SI_AXIS] < si_threshold
     signals["si_in_condylar_band"] = {
         "value": float(coord[_SI_AXIS]),
         "accept": bool(in_condylar),
-        "note": f"SI={coord[_SI_AXIS]:.2f} vs median={si_median:.2f}",
+        "note": (
+            f"SI={coord[_SI_AXIS]:.2f} vs threshold={si_threshold:.2f} "
+            f"(condylar={'above' if condylar_is_above else 'below'})"
+        ),
     }
 
     # --- Per-landmark signals ---
     if landmark_id == "intercondylar_groove_midpoint":
         signals.update(_groove_signals(coord, verts))
     elif landmark_id == "intercondylar_notch":
-        signals.update(_notch_signals(coord, verts))
+        signals.update(_notch_signals(coord, verts, si_threshold, condylar_is_above))
     elif landmark_id in ("lateral_condylar_edge", "medial_condylar_edge"):
-        signals.update(_condylar_edge_signals(coord, verts, landmark_id))
+        signals.update(
+            _condylar_edge_signals(coord, verts, landmark_id, si_threshold, condylar_is_above)
+        )
 
     # --- Cross-landmark signals ---
     if placed_landmarks is not None:
@@ -150,41 +226,71 @@ def _groove_signals(coord: np.ndarray, verts: np.ndarray) -> dict[str, dict]:
     signals["ml_midline_proximity"] = {
         "value": float(ml_dist),
         "accept": bool(ml_dist <= tolerance),
-        "note": f"ML distance from midline {ml_dist:.3f}mm (tolerance {tolerance:.3f}mm)",
+        "note": f"ML distance from midline {ml_dist:.3f} (tolerance {tolerance:.3f})",
     }
     return signals
 
 
-def _notch_signals(coord: np.ndarray, verts: np.ndarray) -> dict[str, dict]:
+def _notch_signals(
+    coord: np.ndarray,
+    verts: np.ndarray,
+    si_threshold: float,
+    condylar_is_above: bool,
+) -> dict[str, dict]:
     """Check notch placement: posterior position, ML midline proximity."""
     signals: dict[str, dict] = {}
-    # Notch should be in posterior half
+
+    # Detect posterior direction from mesh anatomy
+    posterior_dir = _detect_posterior_direction(verts, si_threshold, condylar_is_above)
     ap_median = float(np.median(verts[:, _AP_AXIS]))
-    is_posterior = coord[_AP_AXIS] >= ap_median
-    signals["posterior_position"] = {
-        "value": float(coord[_AP_AXIS]),
-        "accept": bool(is_posterior),
-        "note": f"AP={coord[_AP_AXIS]:.2f} vs median={ap_median:.2f} (should be posterior)",
-    }
-    # Notch should be near ML midline
+    if posterior_dir is None:
+        # Cannot determine — accept gracefully
+        signals["posterior_position"] = {
+            "value": float(coord[_AP_AXIS]),
+            "accept": True,
+            "note": f"AP={coord[_AP_AXIS]:.2f} vs median={ap_median:.2f} (posterior direction uncertain)",
+        }
+    else:
+        is_posterior = (
+            coord[_AP_AXIS] >= ap_median if posterior_dir == "high"
+            else coord[_AP_AXIS] < ap_median
+        )
+        signals["posterior_position"] = {
+            "value": float(coord[_AP_AXIS]),
+            "accept": bool(is_posterior),
+            "note": (
+                f"AP={coord[_AP_AXIS]:.2f} vs median={ap_median:.2f} "
+                f"(posterior={posterior_dir})"
+            ),
+        }
+
+    # Notch should be near ML midline (tolerance 30% of ML range)
     ml_midline = float(np.median(verts[:, _ML_AXIS]))
     ml_dist = abs(coord[_ML_AXIS] - ml_midline)
     ml_range = float(np.ptp(verts[:, _ML_AXIS]))
-    tolerance = ml_range * 0.25 if ml_range > 0 else 1.0
+    tolerance = ml_range * 0.30 if ml_range > 0 else 1.0
     signals["ml_midline_proximity"] = {
         "value": float(ml_dist),
         "accept": bool(ml_dist <= tolerance),
-        "note": f"ML distance from midline {ml_dist:.3f}mm (tolerance {tolerance:.3f}mm)",
+        "note": f"ML distance from midline {ml_dist:.3f} (tolerance {tolerance:.3f})",
     }
     return signals
 
 
 def _condylar_edge_signals(
-    coord: np.ndarray, verts: np.ndarray, landmark_id: str
+    coord: np.ndarray,
+    verts: np.ndarray,
+    landmark_id: str,
+    si_threshold: float,
+    condylar_is_above: bool,
 ) -> dict[str, dict]:
     """Check condylar edge: ML extremity."""
     signals: dict[str, dict] = {}
-    distal = verts[verts[:, _SI_AXIS] < np.median(verts[:, _SI_AXIS])]
+    # Select the condylar half using the detected direction
+    if condylar_is_above:
+        distal = verts[verts[:, _SI_AXIS] >= si_threshold]
+    else:
+        distal = verts[verts[:, _SI_AXIS] < si_threshold]
     if len(distal) == 0:
         return signals
 

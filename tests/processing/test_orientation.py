@@ -1,14 +1,18 @@
-"""Tests for micro-CT orientation helpers."""
+"""Tests for micro-CT orientation helpers.
+
+PCA orientation has been retired in favour of visual landmarking.
+The orientation.py module has been removed; these tests are preserved
+as a record of the prior behaviour.
+"""
 
 from __future__ import annotations
 
-import numpy as np
+import pytest
 
-from microct_analysis.processing.orientation import (
-    apply_rotation,
-    center_volume,
-    pca_orient,
-)
+pytestmark = pytest.mark.skip(reason="PCA orientation retired in visual-landmarking")
+
+
+import numpy as np
 
 
 def _principal_axis(mask: np.ndarray, spacing: tuple[float, ...]) -> np.ndarray:
@@ -25,6 +29,8 @@ def _object_center(mask: np.ndarray, spacing: tuple[float, ...]) -> np.ndarray:
 
 
 def test_center_volume_computes_translation_for_off_center_object() -> None:
+    from microct_analysis.processing.orientation import center_volume
+
     volume = np.zeros((10, 12, 14), dtype=np.uint8)
     volume[2:5, 4:8, 6:10] = 1
     spacing = (0.5, 1.0, 2.0)
@@ -36,6 +42,8 @@ def test_center_volume_computes_translation_for_off_center_object() -> None:
 
 
 def test_pca_orient_elongated_ellipsoid_aligns_pc1_with_z() -> None:
+    from microct_analysis.processing.orientation import pca_orient
+
     spacing = (1.0, 1.0, 1.0)
     z, y, x = np.indices((41, 41, 41), dtype=np.float64)
     center = np.array([20.0, 20.0, 20.0])
@@ -54,6 +62,8 @@ def test_pca_orient_elongated_ellipsoid_aligns_pc1_with_z() -> None:
 
 
 def test_pca_orient_off_center_elongated_object_centers_and_aligns_pc1_with_z() -> None:
+    from microct_analysis.processing.orientation import pca_orient
+
     spacing = (1.0, 1.0, 1.0)
     z, y, x = np.indices((41, 41, 41), dtype=np.float64)
     center = np.array([12.0, 25.0, 14.0])
@@ -72,6 +82,8 @@ def test_pca_orient_off_center_elongated_object_centers_and_aligns_pc1_with_z() 
 
 
 def test_apply_rotation_preserves_volume_shape() -> None:
+    from microct_analysis.processing.orientation import apply_rotation
+
     volume = np.zeros((5, 7, 9), dtype=np.float32)
     rotation = np.eye(3)
 
@@ -81,6 +93,8 @@ def test_apply_rotation_preserves_volume_shape() -> None:
 
 
 def test_pca_orient_label_mask_uses_nearest_neighbor_without_fractional_labels() -> None:
+    from microct_analysis.processing.orientation import pca_orient
+
     label = np.zeros((21, 21, 21), dtype=np.uint8)
     label[4:17, 9:12, 9:12] = 2
     intensity = label.astype(np.float32)
@@ -91,6 +105,8 @@ def test_pca_orient_label_mask_uses_nearest_neighbor_without_fractional_labels()
 
 
 def test_pca_orient_intensity_volume_uses_linear_interpolation() -> None:
+    from microct_analysis.processing.orientation import pca_orient
+
     label = np.zeros((21, 21, 21), dtype=np.uint8)
     label[4:17, 9:12, 9:12] = 1
     intensity = np.zeros_like(label, dtype=np.float32)

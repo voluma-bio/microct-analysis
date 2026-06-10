@@ -45,6 +45,15 @@ the specialist agent and the workflow file.
 - Summarize what changed and what the reviewer should now see in the
   refreshed scene.
 
+### Per-landmark viewpoint selection
+
+When the specialist defines per-landmark primary views (e.g., a viewpoint
+table mapping landmark IDs to camera angles), always render the primary
+view first. Anatomical features can be occluded or mimicked by nearby
+structures from the wrong angle — rendering generic views wastes the view
+budget and risks mis-identification. Secondary views supplement when the
+primary is inconclusive; they do not replace it.
+
 ### Reference image comparison
 
 Each stage has reference images attached to the workflow. Use them — do

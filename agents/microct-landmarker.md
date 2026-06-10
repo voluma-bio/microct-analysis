@@ -53,11 +53,25 @@ confidence=low and report the validation failure.
 For each workflow-defined landmark:
 
 1. **Render views** — Call `render_surface_view()` or `render_slice_view()`
-   with camera params appropriate to the landmark domain:
-   - Femoral 3D (`femoral_3d_surface`): anterior, posterior, lateral,
-     inferior views of the distal femur mesh
-   - Tibial 2D (`tibial_2d_slice`): axial slices at estimated articular,
-     mid-IIOC, and growth-plate region with appropriate windowing
+   with the **primary view for this landmark** from the viewpoint table
+   below. Always start with the primary view — generic "render all four
+   sides" wastes the view budget and risks mis-identification when a
+   feature is occluded from the wrong angle.
+
+#### Per-landmark viewpoint table
+
+| Landmark ID | Primary view | Why | Camera hint (XYZ) |
+|---|---|---|---|
+| `intercondylar_groove_midpoint` | **Anterior** | Groove is on the anterior-distal surface, fully visible from front | focal=mesh centroid, camera along −AP |
+| `intercondylar_notch` | **Posterior** | Notch is OCCLUDED from anterior — trochlear groove mimics notch visually. Must use posterior view | focal=mesh centroid, camera along +AP |
+| `lateral_condylar_edge` | **Distal / inferior** | ML extremes visible from below | focal=mesh centroid, camera along −SI |
+| `medial_condylar_edge` | **Distal / inferior** | Same as lateral | Same |
+| `articular_surface_proximal` | **Slice montage** | Axial slices at estimated articular region, wide window (500, 800) | N/A (2D) |
+| `growth_plate_proximal` | **Slice montage** | Axial slices, NARROW window (245, 50) for physis contrast | N/A (2D) |
+
+   Additional views (secondary angles, zoom) may be rendered after the
+   primary view when inspection is inconclusive, but the primary view
+   is always rendered first.
 
 2. **Inspect** — Examine rendered images. Identify the anatomical feature.
    Request additional views if needed (different camera angle, zoom,
@@ -73,10 +87,33 @@ For each workflow-defined landmark:
 5. **Backstop** — Call `compute_backstop()` to validate the coordinate.
    The backstop returns accept/reject with per-signal details.
 
-6. **Iterate or accept**:
+6. **Iterate or accept** — follow the backstop-driven retry protocol:
    - On accept: record the coordinate and move to next landmark
-   - On reject: read the feedback, adjust, and retry (up to 2 retries)
+   - On reject: follow the retry protocol below (up to 2 retries)
    - On retry exhaustion: emit the best-scoring attempt with confidence=low
+
+#### Backstop-driven retry protocol
+
+When backstop rejects a placement:
+
+1. **Read the feedback** — the backstop returns per-signal details and a
+   human-readable feedback string. The signal name tells you what is wrong.
+2. **Adjust viewpoint** — if the rejection suggests the wrong anatomical
+   feature was identified (e.g., `posterior_position` rejects for notch),
+   switch to the correct primary view from the viewpoint table.
+3. **Re-examine** — render the corrected view and re-identify the feature.
+4. **Re-pick and re-validate** — snap + backstop again.
+5. **Max 2 retries per landmark** — on exhaustion, emit best-scoring
+   attempt with confidence=low and include the backstop feedback in evidence.
+
+**Key retry patterns by signal:**
+
+| Backstop signal | Meaning | Corrective action |
+|---|---|---|
+| `si_in_condylar_band` rejects | Pick is on the shaft, not condyles | Zoom into the distal end |
+| `posterior_position` rejects | Pick is on the anterior groove, not the posterior notch | Switch to **posterior** view |
+| `ml_midline_proximity` rejects | Pick is off-midline | Re-examine from **distal** view to center the pick |
+| `bone_membership` rejects | Pick missed the bone surface | Re-render at higher zoom and re-pick |
 
 ### Two-pass cross-validation
 
@@ -133,6 +170,12 @@ All called via `jupyter-workbench exec`:
   interpretation in evidence and report `low` confidence.
 
 ### Femoral surface features
+
+> **CRITICAL: The intercondylar notch is INVISIBLE from the anterior view.**
+> The trochlear groove on the anterior surface visually resembles the notch
+> (both are midline concavities). Always use the POSTERIOR view for notch
+> placement. If the backstop rejects a notch pick with "not posterior," you
+> are looking at the groove from the wrong side.
 
 - Distinguish cortical surface edges, condylar contours, intercondylar
   notch features, and articular surfaces.
