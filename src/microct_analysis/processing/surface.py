@@ -35,6 +35,36 @@ def extract_surface_mesh(label_mask: np.ndarray, spacing: tuple[float, ...]) -> 
     return vertices, faces
 
 
+
+def local_ml_curvature(point: np.ndarray, vertices: np.ndarray, tree: KDTree, k: int = 12) -> float:
+    """Return point-level ML curvature from nearest-neighbor ML deviation."""
+
+    candidate = np.asarray(point, dtype=float)
+    points = _as_vertices(vertices)
+    if candidate.shape != (_COORDINATE_COUNT,):
+        raise ValueError("point must have shape (3,) in (Z, Y, X) order")
+    neighbor_count = min(k, len(points))
+    if neighbor_count <= 1:
+        return 0.0
+    _distances, neighbor_indices = tree.query(candidate, k=neighbor_count)
+    neighbors = points[np.atleast_1d(neighbor_indices)]
+    return float(abs(candidate[_ML_AXIS] - np.mean(neighbors[:, _ML_AXIS])))
+
+
+def local_ap_recession(point: np.ndarray, vertices: np.ndarray, tree: KDTree, k: int = 12) -> float:
+    """Return point-level AP recession: mean(neighbor_AP) - point_AP."""
+
+    candidate = np.asarray(point, dtype=float)
+    points = _as_vertices(vertices)
+    if candidate.shape != (_COORDINATE_COUNT,):
+        raise ValueError("point must have shape (3,) in (Z, Y, X) order")
+    neighbor_count = min(k, len(points))
+    if neighbor_count <= 1:
+        return 0.0
+    _distances, neighbor_indices = tree.query(candidate, k=neighbor_count)
+    neighbors = points[np.atleast_1d(neighbor_indices)]
+    return float(np.mean(neighbors[:, _AP_AXIS]) - candidate[_AP_AXIS])
+
 def find_saddle_point(vertices: np.ndarray, *, surface_region: str = "anterior_distal") -> np.ndarray:
     """Find the femoral intercondylar groove midpoint on the anterior-distal surface."""
 
