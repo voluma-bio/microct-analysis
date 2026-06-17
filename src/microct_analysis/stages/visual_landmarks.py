@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from microct_analysis.processing.femoral_frame import build_femoral_frame
+from microct_analysis.processing.femoral_frame import build_femoral_frame, serialize_derived_frame
 from microct_analysis.stages.landmarks_orientation import compute_orientation_frame
 
 
@@ -37,7 +37,12 @@ def emit_positions(
     output_root.mkdir(parents=True, exist_ok=True)
 
     # --- positions.json ---
-    derived_frame = derive_ml_vector(placed_landmarks, mesh_vertices)
+    derived_frame = None
+    if mesh_vertices is not None:
+        frame = build_femoral_frame(placed_landmarks, mesh_vertices)
+        if frame is not None:
+            derived_frame = serialize_derived_frame(frame, _frame_source_landmarks(placed_landmarks))
+
     positions: dict[str, Any] = {
         "landmarks": placed_landmarks,
         "coordinate_system": "volume_zyx",
@@ -124,47 +129,6 @@ def aggregate_confidence(
         return "medium", f"Medium-confidence landmarks: {', '.join(medium_ids)}"
 
     return "high", "All landmarks placed with high confidence via visual placement."
-
-
-def derive_ml_vector(
-    placed_landmarks: list[dict[str, Any]],
-    mesh_vertices: np.ndarray | None = None,
-) -> dict[str, Any] | None:
-    """Return the landmark-derived femoral frame payload for positions.json.
-
-    Kept as a compatibility wrapper for existing imports. When mesh vertices are
-    available it delegates to build_femoral_frame and includes all three axes.
-    Without mesh vertices it returns the legacy ML-only payload.
-    """
-    if mesh_vertices is not None:
-        frame = build_femoral_frame(placed_landmarks, mesh_vertices)
-        if frame is None:
-            return None
-        return {
-            "ml_vector": frame.e_ML.tolist(),
-            "ap_vector": frame.e_AP.tolist(),
-            "si_vector": frame.e_SI.tolist(),
-            "confidence": frame.confidence,
-            "source_landmarks": _frame_source_landmarks(placed_landmarks),
-            "ap_verification": frame.evidence.get("ap_verification"),
-        }
-
-    by_id = {lm["id"]: lm for lm in placed_landmarks}
-    lateral = by_id.get("lateral_condylar_edge")
-    medial = by_id.get("medial_condylar_edge")
-    if lateral is None or medial is None:
-        return None
-
-    lat_phys = np.asarray(lateral["physical"], dtype=float)
-    med_phys = np.asarray(medial["physical"], dtype=float)
-    ml_raw = lat_phys - med_phys
-    norm = float(np.linalg.norm(ml_raw))
-    if norm == 0:
-        return None
-    return {
-        "ml_vector": (ml_raw / norm).tolist(),
-        "source_landmarks": _frame_source_landmarks(placed_landmarks),
-    }
 
 
 def _frame_source_landmarks(placed_landmarks: list[dict[str, Any]]) -> list[str]:

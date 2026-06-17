@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from microct_analysis.processing.backstop import BackstopResult, compute_backstop
 
@@ -102,51 +101,6 @@ class TestFemoralBackstop:
         assert result.signals["bone_membership"]["accept"] is True
         assert result.signals["ml_midline_proximity"]["accept"] is True
 
-
-    @pytest.mark.xfail(reason="synthetic geometry; real-mesh tests in test_backstop_oa6.py are the gate", strict=False)
-    def test_notch_high_si_accepted(self):
-        """Synthetic notch behavior is superseded by the OA6 real-mesh gate."""
-        vertices = self._make_condylar_mesh()
-        # Add notch vertex at the exact candidate to guarantee snap distance = 0
-        notch_coord = (375.0, 405.0, 300.0)
-        vertices_with_notch = np.vstack([vertices, [notch_coord]])
-
-        result = compute_backstop(
-            landmark_def={
-                "domain": "femoral_3d_surface",
-                "id": "intercondylar_notch",
-            },
-            coordinate=notch_coord,
-            mesh_vertices=vertices_with_notch,
-            spacing=(1.0, 1.0, 1.0),
-        )
-
-        assert result.accepted is True, (
-            f"Expected notch at high-SI to be accepted. "
-            f"Signals: {result.signals}. Feedback: {result.feedback}"
-        )
-        assert result.confidence == "high"
-        assert result.signals["posterior_position"]["accept"] is True
-
-    @pytest.mark.xfail(reason="synthetic geometry; real-mesh tests in test_backstop_oa6.py are the gate", strict=False)
-    def test_shaft_placement_rejected(self):
-        """Synthetic shaft placement is not covered by deleted SI-band signal."""
-        vertices = self._make_condylar_mesh()
-        # Add vertex at shaft coordinate so snap passes
-        shaft_coord = (100.0, 250.0, 300.0)
-        vertices_with_shaft = np.vstack([vertices, [shaft_coord]])
-
-        result = compute_backstop(
-            landmark_def={
-                "domain": "femoral_3d_surface",
-                "id": "intercondylar_groove_midpoint",
-            },
-            coordinate=shaft_coord,
-            mesh_vertices=vertices_with_shaft,
-            spacing=(1.0, 1.0, 1.0),
-        )
-
-        assert result.accepted is False
 
 
 class TestTibialBackstop:

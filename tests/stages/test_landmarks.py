@@ -80,6 +80,21 @@ def test_rotation_matrix_orthogonalizes_near_collinear_axes() -> None:
     assert abs(abs(float(np.linalg.det(matrix))) - 1.0) < 1e-10
 
 
+def test_rotation_matrix_flags_exact_collinear_axes(caplog: pytest.LogCaptureFixture) -> None:
+    matrix = np.asarray(
+        _rotation_matrix(
+            {
+                "axis_1": [1.0, 0.0, 0.0],
+                "axis_2": [1.0, 0.0, 0.0],
+                "axis_3": [0.0, 0.0, 1.0],
+            }
+        )
+    )
+
+    assert np.allclose(matrix @ matrix.T, np.eye(3), atol=1e-10)
+    assert "rank-deficient orientation axes" in caplog.text
+
+
 @pytest.mark.skip(reason="PCA orientation retired in visual-landmarking")
 def test_pca_orientation_applied_when_tibia_label_present(tmp_path: Path) -> None:
     labels = np.zeros((9, 9, 9), dtype=np.uint8)

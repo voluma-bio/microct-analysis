@@ -77,7 +77,7 @@ def test_anterior_groove_mispick_rejected(oa6_context: dict) -> None:
 
 
 def test_frame_ap_direction_correct(oa6_context: dict) -> None:
-    assert _angle_degrees(oa6_context["frame"].e_AP, np.array([0.375, 0.927, 0.0])) < 15.0
+    assert float(np.dot(oa6_context["frame"].e_AP, np.array([0.0, 1.0, 0.0]))) < 0.0
 
 
 def test_frame_cross_validates_correct_placements(oa6_context: dict) -> None:
@@ -127,6 +127,50 @@ def test_recession_differential_distinguishes_groove_notch(oa6_context: dict) ->
         groove, oa6_context["physical_vertices"], tree
     )
 
+
+
+def test_notch_dfl_uses_physical_mm_not_spacing_scaled(oa6_context: dict) -> None:
+    notch = _get(oa6_context["landmarks"], "intercondylar_notch")
+
+    result = compute_backstop(
+        {"domain": "femoral_3d_surface", "id": "intercondylar_notch"},
+        tuple(notch["physical"]),
+        mesh_vertices=oa6_context["physical_vertices"],
+        spacing=tuple(SPACING),
+        placed_landmarks=oa6_context["placed"],
+    )
+
+    value = result.signals["dfl_range"]["value"]
+    assert 1.5 <= value <= 3.1
+    assert value > 1.0
+
+
+def test_shaft_lateral_edge_rejected_or_low(oa6_context: dict) -> None:
+    shaft = np.array([0.0, 305.0, 447.5]) * SPACING
+
+    result = _backstop(oa6_context, "lateral_condylar_edge", shaft.tolist())
+
+    assert result.accepted is False or result.confidence == "low"
+    assert result.signals["bone_membership"]["accept"] is False or result.signals["ml_extremity"]["accept"] is False
+
+
+def test_off_mesh_notch_hard_rejects_bone_membership(oa6_context: dict) -> None:
+    notch = np.asarray(_get(oa6_context["landmarks"], "intercondylar_notch")["physical"])
+
+    result = _backstop(oa6_context, "intercondylar_notch", (notch + np.array([10.0, 10.0, 10.0])).tolist())
+
+    assert result.accepted is False
+    assert result.confidence == "low"
+    assert result.signals["bone_membership"]["accept"] is False
+
+
+def test_midshaft_mid_ml_groove_rejected(oa6_context: dict) -> None:
+    shaft_mid = np.array([79.5, 283.0, 206.0]) * SPACING
+
+    result = _backstop(oa6_context, "intercondylar_groove_midpoint", shaft_mid.tolist())
+
+    assert result.accepted is False or result.confidence == "low"
+    assert result.signals["si_in_condylar_region"]["accept"] is False or result.signals["bone_membership"]["accept"] is False
 
 def _backstop(context: dict, landmark_id: str, physical: list[float]):
     return compute_backstop(

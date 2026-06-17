@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,8 @@ from microct_analysis.processing.surface import (
     find_saddle_point,
 )
 from microct_analysis.processing.types import LabelVolume
+
+LOGGER = logging.getLogger(__name__)
 
 _AXIS_NAMES = {0: "superior-inferior", 1: "anterior-posterior", 2: "medial-lateral"}
 
@@ -452,6 +455,13 @@ def _unit(vector: np.ndarray) -> np.ndarray:
 
 
 def _rotation_matrix(axes: dict[str, list[float]]) -> list[list[float]]:
+    """Build an orthonormal orientation matrix from workflow axes.
+
+    Rank-deficient axes are completed with an arbitrary identity-axis fill so
+    the result remains a valid matrix, but a warning is logged because the
+    completed orientation may not match anatomy.
+    """
+
     rows = [np.asarray(row, dtype=float) for row in list(axes.values())[:3]]
     identity = (
         np.array([1.0, 0.0, 0.0]),
@@ -468,6 +478,7 @@ def _rotation_matrix(axes: dict[str, list[float]]) -> list[list[float]]:
             candidate = candidate - float(np.dot(candidate, previous)) * previous
         norm = float(np.linalg.norm(candidate))
         if norm < 1e-12:
+            LOGGER.warning("rank-deficient orientation axes; using arbitrary orthogonal fill")
             for fallback in identity:
                 candidate = fallback.copy()
                 for previous in basis:

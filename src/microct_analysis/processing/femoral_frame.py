@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from scipy.spatial import KDTree
 
-from microct_analysis.processing.surface import local_ap_recession
+from microct_analysis.processing.surface import condylar_region_mask, local_ap_recession
 
 _COORDINATE_COUNT = 3
 _MIN_ML_WIDTH_MM = 1.0
@@ -55,7 +55,7 @@ def build_femoral_frame(placed_landmarks: list[dict], mesh_vertices: np.ndarray)
     groove = landmarks.get(_GROOVE_ID)
     notch = landmarks.get(_NOTCH_ID)
 
-    condylar_mask = _condylar_region_mask(points)
+    condylar_mask = condylar_region_mask(points)
     condylar = points[condylar_mask]
     if len(condylar) < _MIN_MIDLINE_VERTICES:
         condylar = points
@@ -88,6 +88,7 @@ def build_femoral_frame(placed_landmarks: list[dict], mesh_vertices: np.ndarray)
     d_perp = d - float(np.dot(d, e_ml)) * e_ml
     d_perp_norm = float(np.linalg.norm(d_perp))
     evidence["ap_seed_perpendicular_norm_mm"] = d_perp_norm
+    ap_sign_reference = d_perp.copy() if d_perp_norm >= _MIN_PERP_NORM_MM else None
     if d_perp_norm < _MIN_PERP_NORM_MM:
         e_si = _pca_axis(points, axis_index=0)
         e_ap = np.cross(e_si, e_ml)
@@ -128,18 +129,33 @@ def build_femoral_frame(placed_landmarks: list[dict], mesh_vertices: np.ndarray)
         e_ap = -e_ap
         evidence["flags"].append("si_flipped_toward_shaft_bulk")
 
+    if ap_sign_reference is not None and float(np.dot(e_ap, ap_sign_reference)) > 0:
+        e_ap = -e_ap
+        e_si = -e_si
+        evidence["flags"].append("ap_sign_restored_anterior_positive")
+
     e_ml = _unit(e_ml)
     e_ap = _unit(e_ap - float(np.dot(e_ap, e_ml)) * e_ml)
     e_si = _unit(np.cross(e_ml, e_ap))
-    if float(np.dot(e_si, centroid_all - center)) < 0:
-        e_si = -e_si
-        e_ap = -e_ap
     _assert_orthonormal(e_ml, e_ap, e_si)
 
     evidence["midline_band_vertex_count"] = int(evidence.get("midline_band_vertex_count", 0))
     evidence["confidence"] = confidence
     return FemoralFrame(e_ML=e_ml, e_AP=e_ap, e_SI=e_si, confidence=confidence, evidence=evidence)
 
+
+
+def serialize_derived_frame(frame: FemoralFrame, source_landmark_ids: list[str]) -> dict[str, Any]:
+    """Serialize a derived femoral frame for positions.json."""
+
+    return {
+        "ml_vector": frame.e_ML.tolist(),
+        "ap_vector": frame.e_AP.tolist(),
+        "si_vector": frame.e_SI.tolist(),
+        "confidence": frame.confidence,
+        "source_landmarks": source_landmark_ids,
+        "ap_verification": frame.evidence.get("ap_verification"),
+    }
 
 def _verify_ap_sign(
     *,
@@ -198,7 +214,6 @@ def _verify_ap_sign(
 
     if groove is None or notch is None:
         evidence["recession_differential_mm"] = None
-        confidence = _lower_confidence(confidence, "low")
         return e_ap, e_si, evidence, confidence
 
     differential = float(evidence["recession_differential_mm"])
@@ -247,33 +262,6 @@ def _mesh_centroid_ap_fallback(center: np.ndarray, vertices: np.ndarray) -> np.n
     if float(np.linalg.norm(d)) == 0:
         d = _pca_axis(vertices, axis_index=1)
     return d
-
-
-def _condylar_region_mask(vertices: np.ndarray, *, ml_span_fraction: float = 0.5) -> np.ndarray:
-    axis = _pca_axis(vertices, axis_index=0)
-    projection = vertices @ axis
-    n_bins = max(10, min(50, len(vertices) // 500))
-    edges = np.linspace(float(projection.min()), float(projection.max()), n_bins + 1)
-    spans = np.zeros(n_bins, dtype=float)
-    valid = np.zeros(n_bins, dtype=bool)
-    bin_ids = np.clip(np.searchsorted(edges, projection, side="right") - 1, 0, n_bins - 1)
-    for index in range(n_bins):
-        in_bin = vertices[bin_ids == index]
-        if len(in_bin) >= 3:
-            spans[index] = float(np.ptp(in_bin[:, 2]))
-            valid[index] = True
-    if not np.any(valid) or float(spans.max()) == 0:
-        return np.ones(len(vertices), dtype=bool)
-
-    peak = int(np.argmax(spans))
-    threshold = float(spans[peak] * ml_span_fraction)
-    left = peak
-    while left > 0 and (not valid[left - 1] or spans[left - 1] >= threshold):
-        left -= 1
-    right = peak
-    while right < n_bins - 1 and (not valid[right + 1] or spans[right + 1] >= threshold):
-        right += 1
-    return (bin_ids >= left) & (bin_ids <= right)
 
 
 def _pca_axis(vertices: np.ndarray, *, axis_index: int) -> np.ndarray:

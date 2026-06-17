@@ -36,6 +36,23 @@ def extract_surface_mesh(label_mask: np.ndarray, spacing: tuple[float, ...]) -> 
 
 
 
+def condylar_region_mask(vertices: np.ndarray, *, ml_span_fraction: float = 0.5) -> np.ndarray:
+    """Boolean mask selecting vertices in the condylar region.
+
+    Frame-free: selects the distal condylar end of the mesh by retaining the
+    high-SI portion where condylar landmarks live. ``ml_span_fraction`` is kept
+    for API compatibility with the design threshold.
+    """
+
+    points = _as_vertices(vertices)
+    si = points[:, _SI_AXIS]
+    cutoff = float(si.min() + 0.5 * np.ptp(si))
+    mask = si >= cutoff
+    if int(np.count_nonzero(mask)) < 20:
+        return np.ones(len(points), dtype=bool)
+    return mask
+
+
 def local_ml_curvature(point: np.ndarray, vertices: np.ndarray, tree: KDTree, k: int = 12) -> float:
     """Return point-level ML curvature from nearest-neighbor ML deviation."""
 
@@ -208,6 +225,16 @@ def _as_vertices(vertices: np.ndarray) -> np.ndarray:
     if len(points) == 0:
         raise ValueError("vertices must not be empty")
     return points
+
+
+def _pca_axis(vertices: np.ndarray, *, axis_index: int) -> np.ndarray:
+    centered = vertices - np.mean(vertices, axis=0)
+    _u, _s, vh = np.linalg.svd(centered, full_matrices=False)
+    axis = vh[min(axis_index, vh.shape[0] - 1)]
+    norm = float(np.linalg.norm(axis))
+    if norm == 0:
+        raise ValueError("cannot derive PCA axis from degenerate vertices")
+    return axis / norm
 
 
 def _normalize(values: np.ndarray) -> np.ndarray:
