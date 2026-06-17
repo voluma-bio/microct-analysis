@@ -13,6 +13,8 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `microct-measurer`: no longer runs the ROI stage driver. Consumes ROI artifacts from the landmarker; surfaces wrong ROI as evidence with a recommended pause instead of redefining it.
 - `mct-visual-review` skill: now owns the generic semi-HITL policy shared across specialists — confidence semantics, explain-then-apply, plain-language feedback translation, reference image comparison, screenshot conventions, earliest-wrong-input correction, and the structured stage report shape. Removed duplicated policy from agent bodies.
 - All agent bodies: stripped hardcoded Python helper module/function names and key bindings. Prompts stay at behavior boundaries (inputs, allowed tools, required outputs, escalation conditions). Stage names normalized to `segmentation`, `landmarks`, `measurements` across all stage reports.
+- Femoral backstop rewritten as two-pass: `compute_backstop()` accepts an optional `femoral_frame` for Pass 2 cross-landmark validation; femoral coordinates are now physical mm throughout (no more double-scaling by spacing in DFL/condylar-width checks).
+- `landmarks_orientation._rotation_matrix` orthogonalizes via Gram-Schmidt; rank-deficient input still produces a valid orthonormal matrix but logs a warning so downstream confidence aggregation can flag it.
 
 ### Added
 - Measurement subsystem: workflow-bound specs, geometry/volume/trabecular primitives, reporting payloads, stage driver, and override records.
@@ -22,3 +24,13 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - First-wedge interactive workflow skills for segmentation review, landmark picking, ROI measurement, and notebook cleanup.
 - Review helper code generators for jupyter-workbench event polling, screenshots, segmentation scenes, and landmark scenes.
 - Cheap notebook cleanup heuristics for dead-end and review-decision cells.
+- Femoral measurement frame derived from placed landmarks (lateral/medial condylar edges + groove + notch) — replaces per-signal axis guessing that failed on real OA6-1RK geometry. Two-pass backstop: frame-free signals catch gross errors (off-mesh, off-condyle, off-midline), frame-dependent signals catch groove-notch swap and AP/SI ordering. AP direction non-circularly verified by condylar-region mesh density with recession-differential fallback.
+- Largest-component mesh preprocessing — multi-fragment femurs no longer inflate ML extremity onto shaft.
+- `condylar_region_mask()` in `processing/surface.py` — single anatomical-region helper shared by frame construction and backstop.
+- OA6-1RK acceptance test suite — 12 tests against real marching-cubes output gate femoral landmark correctness.
+- `serialize_derived_frame()` writes `_derived_frame` to positions.json with all three axes (ml/ap/si), confidence, source landmarks, and AP verification method. `compute_frontal_projected_width` consumes unchanged.
+
+### Removed
+- Per-signal axis heuristics in the femoral backstop (`_detect_condylar_end`, `_detect_posterior_direction`, `si_in_condylar_band`, `posterior_position`) — failed on real diagonally-posed multi-component femurs; replaced by the landmark-anchored frame.
+- `derive_ml_vector()` compatibility wrapper in `stages/visual_landmarks.py` — `emit_positions()` now builds and serializes the femoral frame directly.
+- Two stale synthetic femoral backstop xfail tests — superseded by real-mesh OA6-1RK acceptance tests.
