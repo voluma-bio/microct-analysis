@@ -5,11 +5,15 @@ from pathlib import Path
 
 import numpy as np
 
+from scipy.spatial import KDTree
+
 from microct_analysis.processing.surface import (
     extract_surface_mesh,
     find_condylar_edge,
     find_notch_depth,
     find_saddle_point,
+    local_ap_recession,
+    local_ml_curvature,
 )
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
@@ -85,6 +89,22 @@ def test_notch_oa6_1rk_finds_intercondylar_concavity() -> None:
     assert dfl_lo <= dfl <= dfl_hi
     assert notch[0] > groove[0] + golden["notch"]["min_notch_groove_si_gap"]
 
+
+
+def test_local_surface_helpers_compute_point_level_values() -> None:
+    vertices = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, -1.0],
+            [0.0, 1.0, 1.0],
+            [0.0, 2.0, 0.0],
+        ]
+    )
+    point = np.array([0.0, 0.0, 0.0])
+    tree = KDTree(vertices)
+
+    assert local_ml_curvature(point, vertices, tree, k=4) == 0.0
+    assert local_ap_recession(point, vertices, tree, k=4) == 1.0
 
 def _dumbbell_vertices() -> np.ndarray:
     left_condyle = np.array(
