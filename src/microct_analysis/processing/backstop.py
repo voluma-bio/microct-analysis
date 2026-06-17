@@ -13,6 +13,9 @@ import numpy as np
 from scipy.spatial import KDTree
 from skimage.filters import threshold_otsu
 
+from microct_analysis.processing.femoral_frame import FemoralFrame
+from microct_analysis.processing.surface import _condylar_si_limit, local_ap_recession, local_ml_curvature
+
 
 @dataclass(frozen=True)
 class BackstopResult:
@@ -37,6 +40,7 @@ def compute_backstop(
     intensity: np.ndarray | None = None,
     spacing: tuple[float, float, float] = (1.0, 1.0, 1.0),
     placed_landmarks: dict[str, Any] | None = None,
+    femoral_frame: FemoralFrame | None = None,
 ) -> BackstopResult:
     """Dispatch to per-landmark-type backstop signals, apply ensemble rule.
 
@@ -50,7 +54,7 @@ def compute_backstop(
 
     if domain == "femoral_3d_surface":
         return _femoral_backstop(
-            landmark_id, coordinate, mesh_vertices, spacing, placed_landmarks
+            landmark_id, coordinate, mesh_vertices, spacing, placed_landmarks, femoral_frame
         )
     elif domain == "tibial_2d_slice":
         return _tibial_backstop(
@@ -67,71 +71,7 @@ def compute_backstop(
 _SI_AXIS = 0
 _AP_AXIS = 1
 _ML_AXIS = 2
-
-
-def _detect_condylar_end(verts: np.ndarray) -> tuple[float, bool]:
-    """Detect which SI end is condylar based on ML flare.
-
-    Condyles flare wider in ML than the femoral shaft. Split by SI median,
-    compare ML span (ptp) of each half. The half with WIDER ML range is the
-    condylar end.
-
-    Returns (si_threshold, condylar_is_above) where condylar_is_above=True
-    means the condylar end is at HIGH SI values.
-    """
-    si_median = float(np.median(verts[:, _SI_AXIS]))
-    low_si = verts[verts[:, _SI_AXIS] < si_median]
-    high_si = verts[verts[:, _SI_AXIS] >= si_median]
-    low_ml = float(np.ptp(low_si[:, _ML_AXIS])) if len(low_si) > 0 else 0.0
-    high_ml = float(np.ptp(high_si[:, _ML_AXIS])) if len(high_si) > 0 else 0.0
-    return si_median, high_ml >= low_ml
-
-
-def _detect_posterior_direction(
-    verts: np.ndarray,
-    si_threshold: float,
-    condylar_is_above: bool,
-) -> str | None:
-    """Detect posterior AP direction from intercondylar notch anatomy.
-
-    In the condylar region, the intercondylar notch creates a gap near the
-    ML midline at the posterior side. We find which AP half has FEWER vertices
-    near the ML midline — that half is posterior.
-
-    Returns 'high' (posterior = high AP), 'low' (posterior = low AP),
-    or None (uncertain — not enough data or ambiguous).
-    """
-    condylar = (
-        verts[verts[:, _SI_AXIS] >= si_threshold]
-        if condylar_is_above
-        else verts[verts[:, _SI_AXIS] < si_threshold]
-    )
-    if len(condylar) < 50:
-        return None
-    ml_median = float(np.median(condylar[:, _ML_AXIS]))
-    ml_range = float(np.ptp(condylar[:, _ML_AXIS]))
-    ap_median = float(np.median(condylar[:, _AP_AXIS]))
-    if ml_range == 0:
-        return None
-    ml_band = ml_range * 0.15
-    low_ap = condylar[condylar[:, _AP_AXIS] < ap_median]
-    high_ap = condylar[condylar[:, _AP_AXIS] >= ap_median]
-    if len(low_ap) < 20 or len(high_ap) < 20:
-        return None
-    low_frac = (
-        np.sum(np.abs(low_ap[:, _ML_AXIS] - ml_median) <= ml_band) / len(low_ap)
-    )
-    high_frac = (
-        np.sum(np.abs(high_ap[:, _ML_AXIS] - ml_median) <= ml_band) / len(high_ap)
-    )
-    max_frac = max(low_frac, high_frac)
-    if max_frac == 0:
-        return None
-    # If the two halves are too similar, direction is uncertain
-    if min(low_frac, high_frac) / max_frac > 0.85:
-        return None
-    # The half with LOWER midline fraction is posterior (notch gap)
-    return "high" if high_frac < low_frac else "low"
+_K_NEIGHBORS = 12
 
 
 def _femoral_backstop(
@@ -140,182 +80,189 @@ def _femoral_backstop(
     mesh_vertices: np.ndarray | None,
     spacing: tuple[float, float, float],
     placed_landmarks: dict[str, Any] | None,
+    femoral_frame: FemoralFrame | None = None,
 ) -> BackstopResult:
-    """Femoral surface landmark backstop.
-
-    Generic signals (all femoral landmarks):
-    - bone_membership: coordinate is within mesh vertex cloud (within tolerance)
-    - si_in_condylar_band: SI position is in distal region
-
-    Per-landmark signals (when registered):
-    - intercondylar_groove_midpoint: saddle score, ml_midline proximity
-    - intercondylar_notch: recession score, posterior position
-    - lateral/medial_condylar_edge: ml_extremity
-
-    Cross-landmark signals (when placed_landmarks provided):
-    - dfl_range: groove-to-notch distance in [1.5, 3.0]mm
-    - condylar_width: lateral-to-medial in [2.0, 5.0]mm
-    - notch_groove_ordering: notch SI > groove SI
-    """
+    """Femoral surface landmark backstop with frame-free Pass 1 and optional frame-dependent Pass 2."""
     signals: dict[str, dict] = {}
 
     if mesh_vertices is None or len(mesh_vertices) == 0:
-        return BackstopResult(
-            accepted=True, confidence="medium", signals={}, feedback=""
-        )
+        return BackstopResult(accepted=True, confidence="medium", signals={}, feedback="")
 
     coord = np.asarray(coordinate, dtype=float)
     verts = np.asarray(mesh_vertices, dtype=float)
-
-    # --- Detect anatomical directions from geometry (once, used by all signals) ---
-    si_threshold, condylar_is_above = _detect_condylar_end(verts)
-
-    # --- Generic signal: bone membership (snap distance) ---
     tree = KDTree(verts)
+
     dist, _ = tree.query(coord)
     snap_tolerance = 1.0
-    on_surface = dist <= snap_tolerance
     signals["bone_membership"] = {
         "value": float(dist),
-        "accept": bool(on_surface),
+        "accept": bool(dist <= snap_tolerance),
         "note": f"snap distance {dist:.3f} (tolerance {snap_tolerance})",
     }
 
-    # --- Generic signal: SI in condylar band ---
-    # Use detected direction: coordinate must be on the condylar side of si_threshold
-    if condylar_is_above:
-        in_condylar = coord[_SI_AXIS] >= si_threshold
-    else:
-        in_condylar = coord[_SI_AXIS] < si_threshold
-    signals["si_in_condylar_band"] = {
-        "value": float(coord[_SI_AXIS]),
-        "accept": bool(in_condylar),
-        "note": (
-            f"SI={coord[_SI_AXIS]:.2f} vs threshold={si_threshold:.2f} "
-            f"(condylar={'above' if condylar_is_above else 'below'})"
-        ),
-    }
-
-    # --- Per-landmark signals ---
-    if landmark_id == "intercondylar_groove_midpoint":
-        signals.update(_groove_signals(coord, verts))
+    if landmark_id in ("lateral_condylar_edge", "medial_condylar_edge"):
+        signals.update(_condylar_edge_signals(coord, verts, tree, landmark_id))
+    elif landmark_id == "intercondylar_groove_midpoint":
+        signals.update(_groove_signals(coord, verts, tree))
     elif landmark_id == "intercondylar_notch":
-        signals.update(_notch_signals(coord, verts, si_threshold, condylar_is_above))
-    elif landmark_id in ("lateral_condylar_edge", "medial_condylar_edge"):
-        signals.update(
-            _condylar_edge_signals(coord, verts, landmark_id, si_threshold, condylar_is_above)
-        )
+        signals.update(_notch_signals(coord, verts, tree))
 
-    # --- Cross-landmark signals ---
     if placed_landmarks is not None:
-        signals.update(
-            _cross_landmark_check(landmark_id, coordinate, placed_landmarks, spacing)
-        )
+        signals.update(_cross_landmark_check(landmark_id, coordinate, placed_landmarks, spacing))
+
+    if femoral_frame is not None and placed_landmarks is not None:
+        signals.update(_frame_dependent_signals(landmark_id, coord, verts, tree, placed_landmarks, femoral_frame))
 
     return _ensemble_decision(signals)
 
 
-def _groove_signals(coord: np.ndarray, verts: np.ndarray) -> dict[str, dict]:
-    """Check groove placement: ML midline proximity."""
+def _groove_signals(coord: np.ndarray, verts: np.ndarray, tree: KDTree) -> dict[str, dict]:
+    """Frame-free groove checks: ML midline proximity and local saddle curvature."""
     signals: dict[str, dict] = {}
-    ml_midline = float(np.median(verts[:, _ML_AXIS]))
-    ml_dist = abs(coord[_ML_AXIS] - ml_midline)
-    ml_range = float(np.ptp(verts[:, _ML_AXIS]))
-    # The groove should be near the midline — within 20% of total ML span
-    tolerance = ml_range * 0.2 if ml_range > 0 else 1.0
-    signals["ml_midline_proximity"] = {
-        "value": float(ml_dist),
-        "accept": bool(ml_dist <= tolerance),
-        "note": f"ML distance from midline {ml_dist:.3f} (tolerance {tolerance:.3f})",
+    signals.update(_ml_midline_signal(coord, verts))
+    curvature = local_ml_curvature(coord, verts, tree, k=_K_NEIGHBORS)
+    signals["local_saddle_curvature"] = {
+        "value": float(curvature),
+        "accept": bool(curvature >= 0.0),
+        "note": f"local ML curvature {curvature:.6f}",
     }
     return signals
 
 
-def _notch_signals(
-    coord: np.ndarray,
-    verts: np.ndarray,
-    si_threshold: float,
-    condylar_is_above: bool,
-) -> dict[str, dict]:
-    """Check notch placement: posterior position, ML midline proximity."""
-    signals: dict[str, dict] = {}
-
-    # Detect posterior direction from mesh anatomy
-    posterior_dir = _detect_posterior_direction(verts, si_threshold, condylar_is_above)
-    ap_median = float(np.median(verts[:, _AP_AXIS]))
-    if posterior_dir is None:
-        # Cannot determine — accept gracefully
-        signals["posterior_position"] = {
-            "value": float(coord[_AP_AXIS]),
-            "accept": True,
-            "note": f"AP={coord[_AP_AXIS]:.2f} vs median={ap_median:.2f} (posterior direction uncertain)",
-        }
-    else:
-        is_posterior = (
-            coord[_AP_AXIS] >= ap_median if posterior_dir == "high"
-            else coord[_AP_AXIS] < ap_median
-        )
-        signals["posterior_position"] = {
-            "value": float(coord[_AP_AXIS]),
-            "accept": bool(is_posterior),
-            "note": (
-                f"AP={coord[_AP_AXIS]:.2f} vs median={ap_median:.2f} "
-                f"(posterior={posterior_dir})"
-            ),
-        }
-
-    # Notch should be near ML midline (tolerance 30% of ML range)
-    ml_midline = float(np.median(verts[:, _ML_AXIS]))
-    ml_dist = abs(coord[_ML_AXIS] - ml_midline)
-    ml_range = float(np.ptp(verts[:, _ML_AXIS]))
-    tolerance = ml_range * 0.30 if ml_range > 0 else 1.0
-    signals["ml_midline_proximity"] = {
-        "value": float(ml_dist),
-        "accept": bool(ml_dist <= tolerance),
-        "note": f"ML distance from midline {ml_dist:.3f} (tolerance {tolerance:.3f})",
+def _notch_signals(coord: np.ndarray, verts: np.ndarray, tree: KDTree) -> dict[str, dict]:
+    """Frame-free notch checks: ML midline proximity and AP recession."""
+    signals = _ml_midline_signal(coord, verts)
+    recession = local_ap_recession(coord, verts, tree, k=_K_NEIGHBORS)
+    signals["local_ap_recession"] = {
+        "value": float(recession),
+        "accept": bool(recession > 0),
+        "note": f"local AP recession {recession:.6f} (positive is recessed)",
     }
     return signals
+
+
+def _ml_midline_signal(coord: np.ndarray, verts: np.ndarray) -> dict[str, dict]:
+    ml_midline = float(np.median(verts[:, _ML_AXIS]))
+    ml_dist = abs(float(coord[_ML_AXIS]) - ml_midline)
+    ml_range = float(np.ptp(verts[:, _ML_AXIS]))
+    tolerance = ml_range * 0.3 if ml_range > 0 else 1.0
+    return {
+        "ml_midline_proximity": {
+            "value": float(ml_dist),
+            "accept": bool(ml_dist <= tolerance),
+            "note": f"ML distance from midline {ml_dist:.3f} (tolerance {tolerance:.3f})",
+        }
+    }
 
 
 def _condylar_edge_signals(
     coord: np.ndarray,
     verts: np.ndarray,
+    tree: KDTree,
     landmark_id: str,
-    si_threshold: float,
-    condylar_is_above: bool,
 ) -> dict[str, dict]:
-    """Check condylar edge: ML extremity."""
+    """Frame-free condylar edge checks using a condylar-region-restricted ML extremum."""
     signals: dict[str, dict] = {}
-    # Select the condylar half using the detected direction
-    if condylar_is_above:
-        distal = verts[verts[:, _SI_AXIS] >= si_threshold]
-    else:
-        distal = verts[verts[:, _SI_AXIS] < si_threshold]
-    if len(distal) == 0:
-        return signals
+    condylar = _candidate_condylar_region(coord, verts)
+    if len(condylar) == 0:
+        condylar = verts
 
+    ml_range = float(np.ptp(condylar[:, _ML_AXIS]))
     if "lateral" in landmark_id:
-        extreme = float(np.max(distal[:, _ML_AXIS]))
-        ml_range = float(np.ptp(distal[:, _ML_AXIS]))
-        # Should be in outer 30% of lateral range
-        threshold = extreme - ml_range * 0.3
-        at_extreme = coord[_ML_AXIS] >= threshold
-        signals["ml_extremity"] = {
-            "value": float(coord[_ML_AXIS]),
-            "accept": bool(at_extreme),
-            "note": f"ML={coord[_ML_AXIS]:.2f} vs lateral threshold={threshold:.2f}",
-        }
+        extreme = float(np.max(condylar[:, _ML_AXIS]))
+        threshold = extreme - ml_range * 0.2
+        accepted = bool(coord[_ML_AXIS] >= threshold)
+        note = f"ML={coord[_ML_AXIS]:.2f} vs lateral threshold={threshold:.2f} in condylar region"
     else:
-        extreme = float(np.min(distal[:, _ML_AXIS]))
-        ml_range = float(np.ptp(distal[:, _ML_AXIS]))
-        threshold = extreme + ml_range * 0.3
-        at_extreme = coord[_ML_AXIS] <= threshold
-        signals["ml_extremity"] = {
-            "value": float(coord[_ML_AXIS]),
-            "accept": bool(at_extreme),
-            "note": f"ML={coord[_ML_AXIS]:.2f} vs medial threshold={threshold:.2f}",
+        extreme = float(np.min(condylar[:, _ML_AXIS]))
+        threshold = extreme + ml_range * 0.2
+        accepted = bool(coord[_ML_AXIS] <= threshold)
+        note = f"ML={coord[_ML_AXIS]:.2f} vs medial threshold={threshold:.2f} in condylar region"
+    signals["ml_extremity"] = {"value": float(coord[_ML_AXIS]), "accept": accepted, "note": note}
+
+    _distances, neighbor_indices = tree.query(coord, k=min(_K_NEIGHBORS, len(verts)))
+    neighbors = verts[np.atleast_1d(neighbor_indices)]
+    neighbor_mean_ml = float(np.mean(neighbors[:, _ML_AXIS]))
+    ml_delta = float(coord[_ML_AXIS] - neighbor_mean_ml)
+    convex = ml_delta > 0 if "lateral" in landmark_id else ml_delta < 0
+    signals["local_convexity"] = {
+        "value": ml_delta,
+        "accept": bool(convex),
+        "note": "candidate is outward from local neighbor mean in ML direction",
+    }
+    return signals
+
+
+def _candidate_condylar_region(coord: np.ndarray, verts: np.ndarray) -> np.ndarray:
+    """Restrict ML-extremity checks to the candidate's local condylar SI band."""
+    si_span = float(np.ptp(verts[:, _SI_AXIS]))
+    half_width = max(si_span * 0.08, 0.5)
+    in_band = np.abs(verts[:, _SI_AXIS] - coord[_SI_AXIS]) <= half_width
+    if int(np.count_nonzero(in_band)) >= 20:
+        return verts[in_band]
+    si_limit = _condylar_si_limit(verts)
+    return verts[verts[:, _SI_AXIS] >= si_limit] if coord[_SI_AXIS] >= si_limit else verts[verts[:, _SI_AXIS] <= si_limit]
+
+
+def _frame_dependent_signals(
+    landmark_id: str,
+    coord: np.ndarray,
+    verts: np.ndarray,
+    tree: KDTree,
+    placed_landmarks: dict[str, Any],
+    frame: FemoralFrame,
+) -> dict[str, dict]:
+    signals: dict[str, dict] = {}
+    groove = _get_placed_coordinate(placed_landmarks, "intercondylar_groove_midpoint")
+    notch = _get_placed_coordinate(placed_landmarks, "intercondylar_notch")
+    lateral = _get_placed_coordinate(placed_landmarks, "lateral_condylar_edge")
+    medial = _get_placed_coordinate(placed_landmarks, "medial_condylar_edge")
+
+    if landmark_id == "intercondylar_groove_midpoint":
+        groove = coord
+    elif landmark_id == "intercondylar_notch":
+        notch = coord
+    elif landmark_id == "lateral_condylar_edge":
+        lateral = coord
+    elif landmark_id == "medial_condylar_edge":
+        medial = coord
+
+    if groove is not None and notch is not None and landmark_id in ("intercondylar_groove_midpoint", "intercondylar_notch"):
+        ap_delta = float(np.dot(notch - groove, frame.e_AP))
+        signals["notch_posterior_to_groove"] = {
+            "value": ap_delta,
+            "accept": bool(ap_delta > 0),
+            "note": f"dot(N-G, e_AP)={ap_delta:.6f}; notch must be posterior to groove",
+        }
+        groove_recession = local_ap_recession(groove, verts, tree, k=_K_NEIGHBORS)
+        notch_recession = local_ap_recession(notch, verts, tree, k=_K_NEIGHBORS)
+        diff = float(notch_recession - groove_recession)
+        signals["recession_differential"] = {
+            "value": diff,
+            "accept": bool(diff > 0),
+            "note": f"notch recession - groove recession = {diff:.6f}",
+        }
+        si_delta = float(np.dot(notch - groove, frame.e_SI))
+        signals["notch_groove_si_ordering"] = {
+            "value": si_delta,
+            "accept": bool(si_delta > -0.05),
+            "note": f"dot(N-G, e_SI)={si_delta:.6f}; notch must be more proximal",
+        }
+
+    if lateral is not None and medial is not None and landmark_id in ("lateral_condylar_edge", "medial_condylar_edge"):
+        si_delta_abs = abs(float(np.dot(lateral - medial, frame.e_SI)))
+        si_range = _axis_range(verts, frame.e_SI)
+        tolerance = 0.2 * si_range
+        signals["condylar_edges_si_parity"] = {
+            "value": si_delta_abs,
+            "accept": bool(si_delta_abs < tolerance),
+            "note": f"SI delta {si_delta_abs:.6f} (tolerance {tolerance:.6f})",
         }
     return signals
+
+
+def _axis_range(verts: np.ndarray, axis: np.ndarray) -> float:
+    return float(np.ptp(verts @ np.asarray(axis, dtype=float)))
 
 
 # ---------------------------------------------------------------------------
@@ -700,8 +647,8 @@ def _cross_landmark_check(
             dfl = float(np.linalg.norm(delta))
             signals["dfl_range"] = {
                 "value": dfl,
-                "accept": bool(1.5 <= dfl <= 3.0),
-                "note": f"DFL = {dfl:.3f}mm (range 1.5-3.0mm)",
+                "accept": bool(1.5 <= dfl <= 3.1),
+                "note": f"DFL = {dfl:.3f}mm (range 1.5-3.1mm)",
             }
 
     # Condylar width
@@ -748,7 +695,7 @@ def _get_placed_coordinate(
         return None
     for item in placed_landmarks.get("landmarks", []):
         if isinstance(item, dict) and item.get("id") == landmark_id:
-            coord = item.get("voxel") or item.get("physical")
+            coord = item.get("physical") or item.get("voxel")
             if coord is not None:
                 return np.asarray(coord, dtype=float)
     # Also check direct key access
@@ -829,7 +776,13 @@ def _ensemble_decision(signals: dict[str, dict]) -> BackstopResult:
         )
 
     # Hard vetoes
-    hard_veto_keys = {"iioc_plausibility", "dfl_range"}
+    hard_veto_keys = {
+        "iioc_plausibility",
+        "dfl_range",
+        "notch_posterior_to_groove",
+        "recession_differential",
+        "notch_groove_si_ordering",
+    }
     hard_reject = any(
         not s.get("accept", True)
         for k, s in signals.items()
