@@ -452,11 +452,33 @@ def _unit(vector: np.ndarray) -> np.ndarray:
 
 
 def _rotation_matrix(axes: dict[str, list[float]]) -> list[list[float]]:
-    rows = list(axes.values())[:3]
-    identity = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
+    rows = [np.asarray(row, dtype=float) for row in list(axes.values())[:3]]
+    identity = (
+        np.array([1.0, 0.0, 0.0]),
+        np.array([0.0, 1.0, 0.0]),
+        np.array([0.0, 0.0, 1.0]),
+    )
     while len(rows) < 3:
         rows.append(identity[len(rows)])
-    return rows
+
+    basis: list[np.ndarray] = []
+    for row in rows:
+        candidate = row.copy()
+        for previous in basis:
+            candidate = candidate - float(np.dot(candidate, previous)) * previous
+        norm = float(np.linalg.norm(candidate))
+        if norm < 1e-12:
+            for fallback in identity:
+                candidate = fallback.copy()
+                for previous in basis:
+                    candidate = candidate - float(np.dot(candidate, previous)) * previous
+                norm = float(np.linalg.norm(candidate))
+                if norm >= 1e-12:
+                    break
+        basis.append(candidate / norm)
+
+    matrix = np.stack(basis[:3], axis=0)
+    return matrix.round(12).tolist()
 
 
 def _translation(workflow_orientation: dict[str, Any], landmarks: dict[str, np.ndarray]) -> list[float]:

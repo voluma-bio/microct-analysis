@@ -12,6 +12,7 @@ from microct_analysis.stages.landmarks_orientation import (
     _growth_plate_slice_from_ratios,
     _is_sustained_drop,
     _landmark_confidence,
+    _rotation_matrix,
     _tibial_slice_position,
     compute_orientation_frame,
     run_landmarks_orientation,
@@ -62,6 +63,21 @@ def test_orientation_transform_records_axis_explanation_and_translation() -> Non
     assert frame["axes"]["superior_inferior"] == [1.0, 0.0, 0.0]
     assert "workflow frontal plane" in frame["explanation"]
     assert "superior-inferior now follows" in frame["explanation"]
+
+
+def test_rotation_matrix_orthogonalizes_near_collinear_axes() -> None:
+    matrix = np.asarray(
+        _rotation_matrix(
+            {
+                "axis_1": [1.0, 0.0, 0.0],
+                "axis_2": [1.0, 1e-8, 0.0],
+                "axis_3": [0.0, 0.0, 1.0],
+            }
+        )
+    )
+
+    assert np.allclose(matrix @ matrix.T, np.eye(3), atol=1e-10)
+    assert abs(abs(float(np.linalg.det(matrix))) - 1.0) < 1e-10
 
 
 @pytest.mark.skip(reason="PCA orientation retired in visual-landmarking")
