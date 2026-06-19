@@ -277,6 +277,7 @@ def render_surface_view(
     view_up: tuple[float, float, float] = (0.0, 0.0, 1.0),
     zoom: float = 1.0,
     resolution: tuple[int, int] = (1024, 1024),
+    view_angle: float = 30.0,
     annotations: list[dict] | None = None,
     output_path: str | None = None,
 ) -> str:
@@ -325,6 +326,7 @@ def render_surface_view(
     plotter.camera.position = camera_position
     plotter.camera.focal_point = focal_point
     plotter.camera.up = view_up
+    plotter.camera.view_angle = view_angle
     if zoom != 1.0:
         plotter.camera.zoom(zoom)
 

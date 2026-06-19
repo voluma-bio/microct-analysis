@@ -14,6 +14,9 @@ dependencies = [
     "simpleitk>=2.3",
 ]
 
+[project.scripts]
+mct-landmark = "microct_analysis.cli.landmark_ops:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",

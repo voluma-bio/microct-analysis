@@ -32,9 +32,10 @@ ROI-specific responsibilities.
   `session_id` is missing, stop and ask.
 - Operate only inside the passed session. Never open a new workbench
   session.
-- Use the **visual placement protocol** — call Python primitives via
-  `jupyter-workbench exec` to render views, snap picks, validate with
-  backstop, and emit artifacts.
+- Use the **visual placement protocol** — shell out to the
+  `mct-landmark` CLI as subprocesses to render views, snap picks,
+  validate with backstop, and emit artifacts. The CLI is JSON in / JSON
+  out on stdout; errors are written to stderr.
 - Return a structured stage report. Run-level progression is the
   analyst's call.
 
@@ -42,21 +43,25 @@ ROI-specific responsibilities.
 
 ### Session preparation
 
-Call `prepare_landmark_session(segmentation_artifacts)` to load volumes,
-build meshes (render + snap), build KDTrees, and validate segmentation.
+Run `mct-landmark prepare --seg <json> --cache <dir>` to load volumes,
+build the session cache (marching cubes meshes and KDTrees), and validate
+segmentation. The cache directory is the prepared-session handle for all
+later landmark subprocesses.
 
-If `validate_segmentation_for_landmarking()` fails, abort with
+If preparation reports a segmentation validation failure, abort with
 confidence=low and report the validation failure.
 
 ### Per-landmark placement loop
 
 For each workflow-defined landmark:
 
-1. **Render views** — Call `render_surface_view()` or `render_slice_view()`
-   with the **primary view for this landmark** from the viewpoint table
-   below. Always start with the primary view — generic "render all four
-   sides" wastes the view budget and risks mis-identification when a
-   feature is occluded from the wrong angle.
+1. **Render views** — Run `mct-landmark render-surface` or
+   `mct-landmark render-slice` with the **primary view for this landmark**
+   from the viewpoint table below. Always start with the primary view —
+   generic "render all four sides" wastes the view budget and risks
+   mis-identification when a feature is occluded from the wrong angle.
+   `render-surface` writes the PNG and emits the exact `camera_params`
+   JSON used; store that JSON for the matching snap call.
 
 #### Per-landmark viewpoint table
 
@@ -81,10 +86,12 @@ For each workflow-defined landmark:
    - For 3D: pixel (x, y) on the rendered view
    - For 2D: slice index and approximate (y, x) pixel position
 
-4. **Snap** — Call `snap_to_surface()` or `snap_to_slice()` to get a
-   precise 3D coordinate from the approximate pick.
+4. **Snap** — Run `mct-landmark snap-surface` or
+   `mct-landmark snap-slice` to get a precise ZYX coordinate from the
+   approximate pick. For surface snaps, pass the same `camera_params` JSON
+   emitted by the render that produced the inspected image.
 
-5. **Backstop** — Call `compute_backstop()` to validate the coordinate.
+5. **Backstop** — Run `mct-landmark backstop` to validate the coordinate.
    The backstop returns accept/reject with per-signal details.
 
 6. **Iterate or accept** — follow the backstop-driven retry protocol:
@@ -118,7 +125,7 @@ When backstop rejects a placement:
 ### Two-pass cross-validation
 
 After all individual landmarks are placed:
-- Run `_cross_landmark_check()` for DFL range, condylar width,
+- Run the cross-landmark checks for DFL range, condylar width,
   tibial width, notch-groove ordering.
 - If any cross-check fails, retry the involved landmarks with the
   constraint violation as context.
@@ -126,27 +133,44 @@ After all individual landmarks are placed:
 ### Artifact emission
 
 After all landmarks pass backstop and cross-validation:
-- Call `emit_positions(placed_landmarks, workflow_orientation, spacing,
-  source_artifacts, output_dir)` to write positions.json,
-  orientation_frame.json, oriented_labels.npy, transform_matrix.json.
+- Run `mct-landmark build-frame --cache <dir> --bone <bone> --landmarks <json|->`
+  after Pass 1 to create the femoral frame JSON used by frame-aware
+  validation and emission.
+- Run `mct-landmark emit --cache <dir> --bone <bone> --landmarks <json|->
+  --workflow-orientation <json|-> --spacing sz,sy,sx
+  --source-artifacts <json|-> --out-dir <dir>` to write positions.json,
+  orientation_frame.json, oriented_labels.npy, transform_matrix.json, and
+  the stage report.
 
-## Python Primitives
+## CLI Subcommands
 
-All called via `jupyter-workbench exec`:
+Use `mct-landmark` (or `python -m microct_analysis.cli.landmark_ops`) as
+subprocesses. Each subcommand reads JSON from file paths or `-` where
+supported, writes JSON results to stdout, and writes errors to stderr.
 
-| Function | Module | Purpose |
-|----------|--------|---------|
-| `prepare_landmark_session()` | `processing.rendering` | Load volumes, build meshes + KDTrees |
-| `validate_segmentation_for_landmarking()` | `processing.rendering` | Pre-flight check |
-| `render_surface_view()` | `processing.rendering` | 3D mesh screenshot |
-| `render_slice_view()` | `processing.rendering` | 2D slice screenshot |
-| `query_local_geometry()` | `processing.rendering` | 3D mesh neighborhood query |
-| `snap_to_surface()` | `processing.snapping` | 3D pick to ZYX coordinate |
-| `snap_to_slice()` | `processing.snapping` | 2D pick to ZYX coordinate |
-| `compute_backstop()` | `processing.backstop` | Quantitative validation |
-| `emit_positions()` | `stages.visual_landmarks` | Write all output artifacts |
-| `aggregate_confidence()` | `stages.visual_landmarks` | Stage-level confidence |
-| `derive_ml_vector()` | `stages.visual_landmarks` | ML vector from landmarks |
+| Subcommand | Purpose | Key args |
+|---|---|---|
+| `prepare` | Build session cache (marching cubes + KDTree, once per session) | `--seg <json> --cache <dir>` |
+| `render-surface` | Off-screen 3D mesh PNG; emits exact `camera_params` used | `--cache <dir> --bone <bone> --camera <json|-> --out <png>` |
+| `render-slice` | 2D slice PNG | `--cache <dir> --volume {labels|intensity} --axis <axis> --index <index> --window c,w --mask-bone <bone> --resolution w,h --out <png>` |
+| `snap-surface` | 2D pixel pick → ZYX coord (reuses render's camera) | `--cache <dir> --bone <bone> --pixel x,y --camera <json|-> [--resolution w,h]` |
+| `snap-slice` | 2D pick on a slice → ZYX coord | `--cache <dir> --bone <bone> --slice <index> --pixel y,x --mode {center|edge_medial|edge_lateral|exact}` |
+| `build-frame` | Femoral frame from placed landmarks + mesh | `--cache <dir> --bone <bone> --landmarks <json|->` |
+| `backstop` | Validate a candidate placement | `--cache <dir> --bone <bone> --landmark-def <json|-> --coord z,y,x [--placed <json|->] [--frame <json|->]` |
+| `emit` | Write positions.json/orientation_frame.json/transform_matrix.json + stage report | `--cache <dir> --bone <bone> --landmarks <json|-> --workflow-orientation <json|-> --spacing sz,sy,sx --source-artifacts <json|-> --out-dir <dir>` |
+
+### CLI data flow
+
+```text
+prepare → cache_dir
+for each landmark:
+    render-surface (or render-slice) → image + camera_params.json
+    [agent inspects image, picks pixel]
+    snap-surface (with camera_params.json) or snap-slice → coord
+    backstop → accept/reject
+build-frame after Pass 1 → frame.json
+emit → positions.json + stage report
+```
 
 ## Domain Knowledge
 
@@ -154,8 +178,11 @@ All called via `jupyter-workbench exec`:
 
 - Volume data and positions.json: **ZYX** (SI=0, AP=1, ML=2)
 - PyVista / VTK rendering: **XYZ** (ML=0, AP=1, SI=2)
-- Camera params for `render_surface_view()`: XYZ
-- `snap_to_surface()` returns: ZYX
+- Camera params for `render-surface`: XYZ; reuse the emitted JSON for
+  the corresponding `snap-surface` call. The emitted JSON includes
+  `resolution`, so `snap-surface` does not need a separate `--resolution`
+  unless intentionally overriding it.
+- `snap-surface` returns: ZYX
 - KDTrees: built on ZYX vertices
 
 ### Landmark placement rules
@@ -209,6 +236,17 @@ All called via `jupyter-workbench exec`:
 - Hard cap: None — you decide when you have enough information
 - Total renders budget: per-stage, not per-landmark
 
+## State persistence
+
+The prepare-step cache directory is the session's truth between CLI
+subprocess invocations. Remember the `--cache <dir>` path throughout the
+same placement loop and pass it to every render, snap, backstop,
+build-frame, and emit call.
+
+`positions.json` remains the unchanged seam to ROI definition and
+measurement: its shape does not change; only how the landmarker produces
+it changes.
+
 ## Substages
 
 ### 1. Session preparation + Segmentation validation
@@ -240,7 +278,7 @@ and any acceptance check outcomes.
 ## Boundaries
 
 - ROI execution lives here; the measurer consumes ROI artifacts only.
-- Use only public `jupyter-workbench` CLI and Python primitives.
-- Do not import workbench adapters or rewrite stage logic inline.
-- Rendering is single-threaded (VTK constraint). Do not call render
-  functions concurrently.
+- Use the `mct-landmark` CLI as subprocesses; do not import workbench
+  adapters or rewrite stage logic inline.
+- Rendering remains VTK-constrained per subprocess. Do not run two
+  rendering CLI subprocesses concurrently from the same agent.
