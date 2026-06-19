@@ -5,6 +5,9 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- `render_surface_view` accepts and applies a `view_angle` (default 30°) so the rendered PNG's camera matches what `snap_to_surface`'s ray math uses; previously the angle was emitted but not honored.
+- `microct-landmarker` agent profile rewritten for the CLI contract: `mct-landmark` subcommand calls replace `jupyter-workbench exec` invocations of Python primitives; viewpoint table, backstop retry protocol, cross-validation, and ROI sections preserved. Added a State-persistence section describing the `--cache <dir>` seam between subprocess calls.
+
 - LLM writing quality pass across all agents and skill: collapsed repeated mct-visual-review recaps into one-line bridge sentences, deduplicated boundary rules that appeared in both operating contract and boundaries sections, split clause-heavy instruction blocks (analyst override matching, segmenter event-log translation, measurer upstream inputs, workflow-creator frontmatter list) into sub-bullets or tables, unified workflow-selection contract in analyst (analyst resolves from KB), replaced meta/governance phrasing with direct task language, normalized register (removed "The user talks to you", "Keep it anchored — alive —"), clarified "proceed silently" → "continue without pausing for review", replaced soft cleanup input labels ("keep/remove guidance", "final summary notes") with explicit artifact manifest table.
 - Correct jupyter-workbench CLI examples for positional session commands.
 - `bootstrap/setup.md`: add `Install` section with sibling-repo layout, `uv sync --extra dev`, and `[tool.uv.sources]` explanation; rename prior intro to `Verify environment`.
@@ -17,6 +20,11 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `landmarks_orientation._rotation_matrix` orthogonalizes via Gram-Schmidt; rank-deficient input still produces a valid orthonormal matrix but logs a warning so downstream confidence aggregation can flag it.
 
 ### Added
+- `mct-landmark` CLI (`microct_analysis.cli.landmark_ops`) — eight subcommands (`prepare`, `render-surface`, `render-slice`, `snap-surface`, `snap-slice`, `build-frame`, `backstop`, `emit`) that wrap the existing landmark primitives as JSON-in/JSON-out subprocesses, so the landmarker agent runs without a Jupyter kernel (no localhost-TCP — works under any sandbox).
+- `processing/session_cache.py` — disk-backed session cache (per-bone render/snap mesh NPZs + spacing/assignments/source-volume paths in `session.json`); KDTree rebuilt on load, label/intensity volumes referenced by path and lazy-loaded only when the slice/tibial path needs them.
+- `render-surface` → `snap-surface` camera-intrinsics round-trip: render emits the exact `camera_params` it used (`position`, `focal_point`, `view_up`, `view_angle`, `resolution`); snap reuses the JSON, deriving resolution from it by default.
+- `tests/cli/test_landmark_ops_oa6_e2e.py` — acceptance gate proving the CLI loop reproduces the OA6-1RK result (correct notch `high` confidence; groove-notch swap rejected) inside the previously-failing codex/gpt-5.5 spawn sandbox, with an explicit assertion that no `jupyter`/`ipykernel`/`zmq` module is imported.
+
 - Measurement subsystem: workflow-bound specs, geometry/volume/trabecular primitives, reporting payloads, stage driver, and override records.
 - Real `jupyter-workbench derive` and `compact` cleanup handoff workflow.
 - Explain-then-apply workflow helpers and skill protocol for feedback translation before corrections.
