@@ -226,3 +226,7 @@ data/
 .opencode
 .codex
 .mars
+
+mars.lock
+mars.local.toml
+meridian.local.toml

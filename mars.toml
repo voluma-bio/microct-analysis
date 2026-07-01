@@ -3,13 +3,8 @@ name = "microct-analysis"
 version = "0.1.0"
 description = "Domain package for micro-CT analysis workflows using jupyter-workbench"
 
-[package.skills]
-mct-visual-review = "skills/mct-visual-review/SKILL.md"
+[local-dependencies.meridian-prompter]
+url = "https://github.com/haowjy/meridian-prompter"
 
-[package.agents]
-microct-analyst = "agents/microct-analyst.md"
-microct-segmenter = "agents/microct-segmenter.md"
-microct-landmarker = "agents/microct-landmarker.md"
-microct-measurer = "agents/microct-measurer.md"
-microct-workflow-creator = "agents/microct-workflow-creator.md"
-microct-cleanup = "agents/microct-cleanup.md"
+[settings]
+models_cache_ttl_hours = 24
