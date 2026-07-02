@@ -79,6 +79,8 @@
 # event = "spawn"
 # command = "echo spawn-hook"
 # timeout_secs = 30
+builtin = "git-autosync"
+remote = "git@github.com:voluma-bio/docs.git"
 
 # -- Work behavior -----------------------------------------------------------
 # [work]
@@ -95,15 +97,34 @@
 # path = ".meridian/work"
 # archive = ".meridian/archive/work"
 
+[context.work]
+source = "git"
+remote = "git@github.com:voluma-bio/docs.git"
+path = "prompts/work"
+archive = "archive/prompts/work"
+
+[context.kb]
+source = "git"
+remote = "git@github.com:voluma-bio/docs.git"
+path = "kb"
+
+[context.strategy]
+source = "git"
+remote = "git@github.com:voluma-bio/docs.git"
+path = "strategy"
+
 # -- Workspace root examples -------------------------------------------------
 # Named workspace entries live in meridian.toml / meridian.local.toml.
 
 # [workspace.docs]
 # path = "./docs"
 
+[workspace.siblings]
+path = "../"
+
 # -- Environment variables passed to spawned harnesses -----------------------
 # Flat key-value string map. Applied to every spawn from this project.
 # Keys from meridian.local.toml override meridian.toml; project overrides user.
 
-# [env]
-# OPENCODE_ENABLE_EXA = "1"
+[env]
+OPENCODE_ENABLE_EXA = "1"
