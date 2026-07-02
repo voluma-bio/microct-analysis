@@ -1,0 +1,8 @@
+# Ignore everything by default
+*
+
+# Track .gitignore itself
+!.gitignore
+
+# Track project identity
+!id
