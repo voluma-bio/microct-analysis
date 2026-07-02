@@ -10,4 +10,9 @@ url = "https://github.com/haowjy/meridian-dev-workflow"
 url = "https://github.com/haowjy/meridian-prompter"
 
 [settings]
+targets = [
+    ".claude",
+    ".opencode",
+    ".codex",
+]
 models_cache_ttl_hours = 24
