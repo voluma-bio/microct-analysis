@@ -8,7 +8,7 @@ Use this shape for study-design artifacts.
 - Biological/material outcome
 - Study groups or comparison axis
 - Sample identity and scan inputs
-- Required blinding or anti-cheat constraints
+- Required study blinding constraints
 
 ## Executable protocol
 
