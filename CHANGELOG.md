@@ -5,12 +5,17 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- Replaced the old six-agent stage pipeline with the converged Study Design → Analyst → Code Reviewer agent architecture.
+- Added package skills for study design, analysis execution, provenance, environment probing, and domain-specific morphometry placeholders.
+- Updated README and root AGENTS guidance for the new agent-as-thin-wrapper / skills-hold-knowledge model.
+
+### Changed
 - `render_surface_view` accepts and applies a `view_angle` (default 30°) so the rendered PNG's camera matches what `snap_to_surface`'s ray math uses; previously the angle was emitted but not honored.
 - `microct-landmarker` agent profile rewritten for the CLI contract: `mct-landmark` subcommand calls replace `jupyter-workbench exec` invocations of Python primitives; viewpoint table, backstop retry protocol, cross-validation, and ROI sections preserved. Added a State-persistence section describing the `--cache <dir>` seam between subprocess calls.
 
 - LLM writing quality pass across all agents and skill: collapsed repeated mct-visual-review recaps into one-line bridge sentences, deduplicated boundary rules that appeared in both operating contract and boundaries sections, split clause-heavy instruction blocks (analyst override matching, segmenter event-log translation, measurer upstream inputs, workflow-creator frontmatter list) into sub-bullets or tables, unified workflow-selection contract in analyst (analyst resolves from KB), replaced meta/governance phrasing with direct task language, normalized register (removed "The user talks to you", "Keep it anchored — alive —"), clarified "proceed silently" → "continue without pausing for review", replaced soft cleanup input labels ("keep/remove guidance", "final summary notes") with explicit artifact manifest table.
 - Correct jupyter-workbench CLI examples for positional session commands.
-- `bootstrap/setup.md`: add `Install` section with sibling-repo layout, `uv sync --extra dev`, and `[tool.uv.sources]` explanation; rename prior intro to `Verify environment`.
+- `bootstrap/setup/BOOTSTRAP.md`: add `Install` section with sibling-repo layout, `uv sync --extra dev`, and `[tool.uv.sources]` explanation; rename prior intro to `Verify environment`.
 - `microct-analyst`: reframed description around the user-facing job (run an analysis) instead of "orchestrator" identity. Added an explicit workflow readiness gate — analyst will not pass a workflow with unresolved inferred or low/medium-confidence executable fields to specialists until the user reviews them.
 - `microct-landmarker`: now the sole owner of ROI execution alongside landmarks and orientation. Added ROI artifacts (`roi_definitions`, `roi_masks`) to the stage report.
 - `microct-measurer`: no longer runs the ROI stage driver. Consumes ROI artifacts from the landmarker; surfaces wrong ROI as evidence with a recommended pause instead of redefining it.
