@@ -6,6 +6,7 @@ description: >
   completeness against the accepted study protocol. Reports blocking findings
   and concrete fixes; does not rewrite the analysis itself.
 model: gpt54
+sandbox: workspace-write
 skills:
   load: [review, analysis-core, provenance, intent-modeling]
   available: [bone-morphometry, vascular-analysis, materials-analysis]

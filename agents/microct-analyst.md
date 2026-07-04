@@ -6,6 +6,7 @@ description: >
   analyst probes the environment, generates transparent analysis code, explains
   before execution, records provenance, and returns artifacts for review.
 model: gpt55
+sandbox: workspace-write
 skills:
   load: [intent-modeling, analysis-core, provenance, environment-setup, goal-writing, handoff]
   available: [bone-morphometry, vascular-analysis, materials-analysis]

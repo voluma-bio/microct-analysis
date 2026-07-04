@@ -5,6 +5,9 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- Official micro-CT agent profiles now request `workspace-write` sandbox access so
+  Meridian can add the work, archive, KB, project, and temp directories needed
+  for normal package runs.
 - Replaced the old six-agent stage pipeline with the converged Study Design → Analyst → Code Reviewer agent architecture.
 - Added package skills for study design, analysis execution, provenance, environment probing, and domain-specific morphometry placeholders.
 - Updated README and root AGENTS guidance for the new agent-as-thin-wrapper / skills-hold-knowledge model.

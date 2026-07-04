@@ -6,6 +6,7 @@ description: >
   interviews, challenges assumptions, chooses measurements, records open
   decisions, and writes a verifiable goal for `microct-analyst`.
 model: gpt54
+sandbox: workspace-write
 skills:
   load: [intent-modeling, study-design, goal-writing, handoff, llm-writing]
   available: [bone-morphometry, vascular-analysis, materials-analysis]
