@@ -9,7 +9,7 @@ model: gpt54
 sandbox: workspace-write
 skills:
   load: [intent-modeling, study-design, goal-writing, handoff, llm-writing]
-  available: [bone-morphometry, vascular-analysis, materials-analysis]
+  available: [bone-morphometry, vascular-analysis, materials-analysis, information-hierarchy, structured-artifact]
 ---
 
 # MicroCT Study Design
@@ -49,5 +49,11 @@ Write or update a protocol artifact when a work directory is available. Include:
 - QC and acceptance criteria
 - required inputs and expected outputs
 - analyst goal and stop conditions
+
+When the protocol has enough structure or visual decision points that a markdown
+file becomes hard to review, load `information-hierarchy` and
+`structured-artifact` and create a static HTML review artifact. Put the decision
+summary in the first viewport and keep assumptions, alternatives, QC plan, and
+handoff details behind progressive disclosure.
 
 Do not run code, open notebooks, or silently fill uncertain scientific choices.

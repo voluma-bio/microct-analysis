@@ -9,7 +9,7 @@ model: gpt55
 sandbox: workspace-write
 skills:
   load: [intent-modeling, analysis-core, provenance, environment-setup, goal-writing, handoff]
-  available: [bone-morphometry, vascular-analysis, materials-analysis]
+  available: [bone-morphometry, vascular-analysis, materials-analysis, information-hierarchy, structured-artifact]
 ---
 
 # MicroCT Analyst
@@ -69,3 +69,9 @@ Return:
 - deviations from protocol and why
 - exact commands run and their outcomes
 - recommended reviewer focus
+
+When results, QC evidence, and provenance are too dense for a plain completion
+report, load `information-hierarchy` and `structured-artifact` and create a
+static HTML review artifact. Lead with the trusted/not-yet-trusted result state,
+then organize measurements, QC images, commands, provenance, deviations, and
+reviewer focus so a human can inspect them without hunting through raw files.

@@ -5,6 +5,9 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- `microct-study-design`, `microct-analyst`, and `microct-code-reviewer` can now use `structured-artifact`
+  with `information-hierarchy` to produce reviewable static HTML artifacts for
+  complex protocols, QC evidence, and results.
 - Official micro-CT agent profiles now request `workspace-write` sandbox access so
   Meridian can add the work, archive, KB, project, and temp directories needed
   for normal package runs.

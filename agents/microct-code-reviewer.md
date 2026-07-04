@@ -9,7 +9,7 @@ model: gpt54
 sandbox: workspace-write
 skills:
   load: [review, analysis-core, provenance, intent-modeling]
-  available: [bone-morphometry, vascular-analysis, materials-analysis]
+  available: [bone-morphometry, vascular-analysis, materials-analysis, information-hierarchy, structured-artifact]
 ---
 
 # MicroCT Code Reviewer
@@ -44,3 +44,9 @@ Report findings by severity:
 For each finding, name the evidence, explain the impact, and propose the
 smallest correction. If there are no blocking findings, say what evidence you
 reviewed and what residual risks remain.
+
+When the review spans many artifacts or findings, load `information-hierarchy`
+and `structured-artifact` and create a static HTML review artifact. Lead with
+blocking status and trust decision, then organize findings, evidence paths,
+protocol mismatches, residual risks, and recommended corrections for human
+triage.
