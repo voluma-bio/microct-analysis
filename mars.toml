@@ -1,6 +1,6 @@
 [package]
 name = "microct-analysis"
-version = "0.1.0"
+version = "0.1.1"
 description = "Domain package for micro-CT analysis workflows using jupyter-workbench"
 requires-mars = ">=0.14.0"
 

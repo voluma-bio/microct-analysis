@@ -4,6 +4,8 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-22
+
 ### Changed
 - Removed Composer from microct-analyst's fallback policy; the base alias remains available during retirement.
 - Study design and analyst now name Sol directly instead of the legacy gpt55 alias; Sol effort is explicit high.
