@@ -5,7 +5,15 @@ description: >
   study-design handoff, input data paths, and the requested evidence shape. The
   analyst probes the environment, generates transparent analysis code, explains
   before execution, records provenance, and returns artifacts for review.
-model: gpt55
+model: sol
+effort: high
+model-policies:
+  - match: {alias: sol}
+    override: {effort: high}
+  - match: {alias: sonnet5}
+    override: {}
+  - match: {alias: deepseek}
+    override: {effort: high}
 sandbox: workspace-write
 skills:
   load: [intent-modeling, analysis-core, provenance, environment-setup, goal-writing, handoff]

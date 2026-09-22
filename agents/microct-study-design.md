@@ -5,7 +5,15 @@ description: >
   protocol and analyst handoff. This agent does not run analysis; it
   interviews, challenges assumptions, chooses measurements, records open
   decisions, and writes a verifiable goal for `microct-analyst`.
-model: gpt54
+model: sol
+effort: high
+model-policies:
+  - match: {alias: sol}
+    override: {effort: high}
+  - match: {alias: opus46}
+    override: {}
+  - match: {alias: deepseek}
+    override: {effort: high}
 sandbox: workspace-write
 skills:
   load: [intent-modeling, study-design, goal-writing, handoff, llm-writing]

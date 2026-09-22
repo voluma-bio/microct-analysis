@@ -5,6 +5,11 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- Removed Composer from microct-analyst's fallback policy; the base alias remains available during retirement.
+- Study design and analyst now name Sol directly instead of the legacy gpt55 alias; Sol effort is explicit high.
+- Code reviewer defaults to Astra for diversity from the Sol analyst, with Sol/Grok/Opus alternatives. DeepSeek is explicit-only, not an automatic scientific-review fallback.
+- Requires Mars >=0.14.0 for the explicit-only review fallback policy.
+- Requires meridian-dev-workflow >=0.13.6 for refreshed staffing and Muse aliases.
 - `microct-study-design`, `microct-analyst`, and `microct-code-reviewer` can now use `structured-artifact`
   with `information-hierarchy` to produce reviewable static HTML artifacts for
   complex protocols, QC evidence, and results.

@@ -4,8 +4,22 @@ description: >
   Use after `microct-analyst` produces analysis artifacts. Reviews scientific
   validity, generated code, measurement logic, QC evidence, and provenance
   completeness against the accepted study protocol. Reports blocking findings
-  and concrete fixes; does not rewrite the analysis itself.
-model: gpt54
+  and concrete fixes; does not rewrite the analysis itself. Prefer a model
+  different from the analyst's actual model.
+model: astra
+effort: high
+model-policies:
+  - match: {alias: astra}
+    override: {effort: high}
+  - match: {alias: sol}
+    override: {effort: high}
+  - match: {alias: grok}
+    override: {effort: high}
+  - match: {alias: opus}
+    override: {effort: high}
+  - match: {alias: deepseek}
+    no-fallback: true
+    override: {effort: high}
 sandbox: workspace-write
 skills:
   load: [review, analysis-core, provenance, intent-modeling]
