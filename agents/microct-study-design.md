@@ -10,7 +10,7 @@ effort: high
 model-policies:
   - match: {alias: sol}
     override: {effort: high}
-  - match: {alias: opus46}
+  - match: {alias: opus}
     override: {}
   - match: {alias: deepseek}
     override: {effort: high}
