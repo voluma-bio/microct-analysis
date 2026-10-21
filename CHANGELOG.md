@@ -4,6 +4,13 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Standalone OA-paper Python reference workflow: verified DICOM calibration,
+  explicit filtering and watershed, reslicing, annotation-driven measurements,
+  grid/hash-bound masks, and repeatable 3D/slice inspection artifacts.
+- Numerical tests for calibration, physical geometry, ROI provenance, seed
+  separation, and reslicing; documented protocol ambiguities and scope limits.
+
 ### Changed
 - `@microct-study-design`: `opus46` fallback → `opus`. `@microct-analyst`: `sonnet5` fallback → `sonnet`.
 

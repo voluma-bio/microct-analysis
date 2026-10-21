@@ -34,3 +34,7 @@ Show enough evidence to catch wrong-side, wrong-depth, wrong-threshold, and
 wrong-denominator failures. A metric table without ROI overlays is not enough.
 
 Load `resources/subchondral-bone.md` for osteoarthritis mouse-knee design cues.
+
+For an explicit Python implementation of the OA paper's geometric analysis,
+load `resources/python-protocol/README.md`. It includes calibration, reviewed
+seed/landmark contracts, rendering loops, and limitations of the reference code.
