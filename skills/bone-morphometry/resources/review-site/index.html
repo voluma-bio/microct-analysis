@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>OA6-1RK · micro-CT review</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/vendor/build/three.module.js",
+          "three/addons/": "/vendor/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>OA6-1RK</strong><span class="subtitle"> micro-CT review</span>
+      </div>
+      <span class="badge">Provisional analysis</span
+      ><button id="export">Export review notes</button>
+    </header>
+    <main>
+      <aside>
+        <h2>Measurements</h2>
+        <p>
+          Select a result to locate its endpoints. All values remain
+          provisional.
+        </p>
+        <div id="measurements"></div>
+        <section id="details">
+          <h3>Review a measurement</h3>
+          <p>Choose a measurement above.</p>
+        </section>
+        <label
+          >Review decision<select id="decision">
+            <option>Not reviewed</option>
+            <option>Accept provisionally</option>
+            <option>Needs correction</option>
+          </select></label
+        ><label
+          >Your notes<textarea
+            id="note"
+            rows="3"
+            placeholder="Describe the landmark or segmentation change needed"
+          ></textarea>
+        </label>
+        <p id="saved">
+          Notes stay in this browser. Export to share or back up.
+        </p>
+        <h2>Structures</h2>
+        <div class="row">
+          <button id="all">Show all</button
+          ><button id="isolate">Isolate selection</button>
+        </div>
+        <label
+          >Surface opacity
+          <input
+            id="opacity"
+            type="range"
+            min="0.08"
+            max="1"
+            step=".02"
+            value=".7"
+        /></label>
+        <div id="structures"></div>
+      </aside>
+      <section class="workspace">
+        <div class="viewbar">
+          <div class="row">
+            <button data-view="overview">Whole joint</button
+            ><button data-view="anterior">Femur anterior</button
+            ><button data-view="posterior">Femur posterior</button
+            ><button data-view="joint">Femur notch</button>
+          </div>
+          <label
+            ><input type="checkbox" id="xray" checked /> Show hidden
+            rulers</label
+          ><button id="focus">Focus selection</button
+          ><button id="capture">Save 3D image</button>
+        </div>
+        <div id="viewport">
+          <div id="load" role="status">Loading reviewed structures…</div>
+          <div id="orientation">
+            Scene axes: scanner X / Y / Z · millimetres
+          </div>
+          <div id="hint">
+            Drag to rotate · scroll to zoom · right-drag to pan
+          </div>
+        </div>
+        <div class="slice-header">
+          <h2>Inspect the image stack</h2>
+          <label
+            >Image<select id="source">
+              <option value="filtered">Median-filtered HU</option>
+              <option value="raw">Original HU</option>
+              <option value="tibia">Tibia-aligned HU</option>
+            </select></label
+          ><label
+            >Plane<select id="axis">
+              <option value="0">Z plane (XY)</option>
+              <option value="1">Y plane (XZ)</option>
+              <option value="2">X plane (YZ)</option>
+            </select></label
+          ><label
+            ><input type="checkbox" id="overlay" checked /> Segmentation</label
+          ><label><input type="checkbox" id="plane3d" />Plane in 3D</label>
+        </div>
+        <div class="slice-layout">
+          <div class="slice-image">
+            <img id="slice" alt="Selected micro-CT image slice" />
+            <div id="slice-status" role="status"></div>
+          </div>
+          <div class="slice-controls">
+            <label
+              >Slice <output id="slice-number"></output
+              ><input
+                id="slice-index"
+                type="range"
+                min="0"
+                max="876"
+                value="438"
+            /></label>
+            <div class="row">
+              <button id="previous">Previous slice</button
+              ><button id="next">Next slice</button>
+            </div>
+            <label
+              >Lower HU<input
+                id="low"
+                type="number"
+                value="0"
+                step="100" /></label
+            ><label
+              >Upper HU<input id="high" type="number" value="5000" step="100"
+            /></label>
+            <p>
+              Rows and columns increase down and right. Raw HU uses the final
+              filtered segmentation overlay. Tibia alignment uses interpolated
+              HU and nearest-neighbour labels.
+            </p>
+            <p id="slice-coordinate"></p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <section class="bottom">
+      <h2>What still needs review</h2>
+      <div class="pending">
+        <article>
+          <h3>Growth plate & tibial geometry</h3>
+          <p>
+            Resolve the medial interface, maximum-height section, and first
+            articular / growth-plate appearances. The 2.911 mm tilted junction
+            chord is not the paper’s tibial width.
+          </p>
+        </article>
+        <article>
+          <h3>Bone regions & outgrowths</h3>
+          <p>
+            Define medial/lateral subchondral and trabecular ROIs before BV/TV
+            or trabecular metrics. Review osteophyte boundaries and separate
+            joint mineralization before quantifying them.
+          </p>
+        </article>
+        <article>
+          <h3>Inclusion decisions</h3>
+          <p>
+            Review tibial-margin fragments, sesamoids, and the proximal patellar
+            ossification. Mineralized label volume is not whole-organ volume.
+            Cartilage thickness and mineral density are not established by these
+            data.
+          </p>
+        </article>
+      </div>
+      <h2>Evidence & provenance</h2>
+      <p id="method"></p>
+      <p>
+        Upper-groove placement sensitivity: femoral length 2.387–2.479 mm.
+        Width-plane sensitivity: 3.363–3.439 mm. These are not confidence
+        intervals. Supplemental tables were not used.
+      </p>
+      <label>Review stage<select id="stage"></select></label>
+      <div id="evidence"></div>
+      <details>
+        <summary>Download coordinates, transforms and provenance</summary>
+        <div id="downloads"></div>
+      </details>
+      <p>
+        <a href="/assets/evidence/final-measurements/REPORT.md" target="_blank"
+          >Read the measurement report</a
+        >
+        · <a href="/assets/manifest.json" download>Download scene manifest</a>
+      </p>
+    </section>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

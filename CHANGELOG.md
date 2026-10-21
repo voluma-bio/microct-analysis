@@ -5,6 +5,9 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Private 3D review site with registered measurement rulers, 12-structure toggles,
+  original/filtered/aligned slice browsing, evidence downloads, and exportable
+  browser-local review notes; slice-orientation and request-boundary tests.
 - Standalone OA-paper Python reference workflow: verified DICOM calibration,
   explicit filtering and watershed, reslicing, annotation-driven measurements,
   grid/hash-bound masks, and repeatable 3D/slice inspection artifacts.
