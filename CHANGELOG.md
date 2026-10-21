@@ -5,6 +5,8 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- OA6-1RK session record with session ID, preserved artifact paths, original
+  measurement checksum, and outstanding placement-review findings.
 - Private 3D review site with registered measurement rulers, 12-structure toggles,
   original/filtered/aligned slice browsing, evidence downloads, and exportable
   browser-local review notes; slice-orientation and request-boundary tests.
