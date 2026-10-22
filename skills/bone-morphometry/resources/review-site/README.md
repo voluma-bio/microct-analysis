@@ -26,7 +26,7 @@ This uses Serve, not public Funnel. Access follows the tailnet's access policy. 
 ## Reviewing
 
 1. Select a measurement, then focus it or isolate its associated bone. Use the anatomical femoral cameras to inspect A and C from the correct sides.
-2. Hidden rulers are explicitly projected through bone by default. Turn that option off to see occlusion. The surface is sampled at two voxels, so small endpoint/surface offsets are expected.
+2. Surfaces are fully opaque by default. Rulers and labels are occluded by visible bones; turn on Show hidden rulers only when projection through bone is wanted. The surface is sampled at two voxels, so small endpoint/surface offsets are expected.
 3. Open endpoint slices, or scroll through all three source-grid planes and the tibia-aligned volume. Toggle segmentation to inspect the HU image beneath it. Add a slice plane to the 3D scene to check registration.
 4. Use each structure's Review button to record inclusion or boundary concerns. Femur, tibia and fibula volumes are limited by scan coverage.
 5. Record a decision and notes, then export them as JSON. They are saved in this browser only, not shared across devices and not automatically applied to landmarks. The export retains grid identity and measurement coordinates. Saved 3D PNGs include ruler labels; evidence thumbnails open at full size.

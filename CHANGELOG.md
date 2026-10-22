@@ -20,6 +20,8 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   separation, and reslicing; documented protocol ambiguities and scope limits.
 
 ### Changed
+- Review surfaces default to full opacity; hidden rulers and landmark labels
+  are occluded by bone unless explicitly enabled.
 - `@microct-study-design`: `opus46` fallback → `opus`. `@microct-analyst`: `sonnet5` fallback → `sonnet`.
 
 ## [0.1.1] - 2026-09-22

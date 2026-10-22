@@ -40,6 +40,7 @@ controls.maxDistance = 55;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x526475, 2));
 const light = new THREE.DirectionalLight(0xffffff, 2);
 scene.add(light);
+const labelRay = new THREE.Raycaster();
 const meshes = new Map(),
   rulers = new THREE.Group();
 scene.add(rulers);
@@ -289,7 +290,7 @@ $("capture").onclick = () => {
   ctx.font = `${12 * scale}px sans-serif`;
   for (const { point, element } of labels) {
     const p = point.clone().project(camera);
-    if (p.z < -1 || p.z > 1) continue;
+    if (p.z < -1 || p.z > 1 || element.style.display === "none") continue;
     const x = ((p.x + 1) / 2) * canvas.width + 8 * scale,
       y = ((-p.y + 1) / 2) * canvas.height - 8 * scale;
     ctx.fillStyle = "#101820";
@@ -346,7 +347,9 @@ $("focus").onclick = () => {
 $("opacity").oninput = () =>
   meshes.forEach((m) => {
     m.material.opacity = Number($("opacity").value);
+    m.material.transparent = m.material.opacity < 1;
     m.material.depthWrite = m.material.opacity === 1;
+    m.material.needsUpdate = true;
   });
 $("xray").onchange = () => select(selected);
 document
@@ -374,7 +377,15 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
   for (const { element, point } of labels) {
     const p = point.clone().project(camera);
-    element.style.display = p.z > 1 || p.z < -1 ? "none" : "block";
+    let occluded = false;
+    if (!$("xray").checked && p.z >= -1 && p.z <= 1) {
+      const direction = point.clone().sub(camera.position);
+      const distance = direction.length();
+      labelRay.set(camera.position, direction.normalize());
+      labelRay.far = Math.max(0, distance - 0.05);
+      occluded = labelRay.intersectObjects([...meshes.values()].filter(m => m.visible), false).length > 0;
+    }
+    element.style.display = p.z > 1 || p.z < -1 || occluded ? "none" : "block";
     element.style.left = ((p.x + 1) / 2) * viewport.clientWidth + 8 + "px";
     element.style.top = ((-p.y + 1) / 2) * viewport.clientHeight - 20 + "px";
   }
@@ -589,9 +600,9 @@ try {
       color: s.color,
       roughness: 0.85,
       metalness: 0,
-      transparent: true,
-      opacity: 0.7,
-      depthWrite: false,
+      transparent: Number($("opacity").value) < 1,
+      opacity: Number($("opacity").value),
+      depthWrite: Number($("opacity").value) === 1,
       side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geometry, material);
