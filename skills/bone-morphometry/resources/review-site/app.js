@@ -1,5 +1,13 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import {
+  resolveParameter,
+  mountParameterCatalog,
+  appendParameterDetails,
+} from "./parameter-panel.js";
+const catalogResponse = await fetch("/parameters.json");
+if (!catalogResponse.ok) throw Error("Parameter definitions unavailable");
+const catalog = await catalogResponse.json();
 const $ = (id) => document.getElementById(id);
 const response = await fetch("/assets/manifest.json");
 if (!response.ok) throw Error("Could not load review manifest");
@@ -41,6 +49,11 @@ let selected = "femoral_length_provisional",
   visibilityFilter = null,
   dirty = true;
 function measurement(key) {
+  if (key.startsWith("deck-"))
+    return resolveParameter(
+      catalog.parameters.find((p) => `deck-${p.id}` === key),
+      data,
+    );
   if (data.measurements[key]) return data.measurements[key];
   const s = data.structures.find((s) => key === "structure-" + s.label);
   return {
@@ -129,16 +142,29 @@ function select(key) {
   clearRulers();
   $("details").replaceChildren();
   const heading = document.createElement("h3");
-  heading.textContent = names[key];
+  heading.textContent = m.title || names[key];
+  $("parameter-picker").value = key.startsWith("deck-") ? key : "";
   $("details").append(heading);
   const definition = document.createElement("p");
   definition.textContent =
     m.definition ||
     "Mineralized label volume from the original grid; separate ossifications are not combined. All structure volumes are segmented voxel volumes.";
-  if (m.unit === "1")
+  if (m.unit === "1" && !m.parameter)
     definition.textContent =
       "Width divided by length. Both measurements remain provisional.";
   $("details").append(definition);
+  appendParameterDetails(m, data, () => {
+    $("isolate").click();
+    if (m.parameter.context === "tibia") {
+      $("source").value = "tibia";
+      $("axis").value = "1";
+      configureSlice();
+      $("slice-index").value = 195;
+      updateSlice();
+    }
+    $("focus").click();
+    $("viewport").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
   if (m.points_scene_mm) {
     const color = key.includes("chord") ? 0xf0ad4e : 0x62e3ef;
     const points = m.points_scene_mm.map(v),
@@ -152,9 +178,10 @@ function select(key) {
       );
     line.renderOrder = 10;
     rulers.add(line);
-    const endpoints = key.includes("length")
+    const endpointKey = m.parameter?.source_measurement || key;
+    const endpoints = endpointKey.includes("length")
       ? ["A", "C"]
-      : key.includes("width")
+      : endpointKey.includes("width")
         ? ["L", "M"]
         : ["P1", "P2"];
     m.points_scene_mm.forEach((p, i) => mark(p, endpoints[i], color));
@@ -236,6 +263,7 @@ $("export").onclick = () =>
             exported: new Date().toISOString(),
             notes,
             measurements: data.measurements,
+            parameter_definitions: catalog,
             camera: {
               position: camera.position.toArray(),
               target: controls.target.toArray(),
@@ -287,7 +315,9 @@ $("all").onclick = () => {
 };
 $("isolate").onclick = () => {
   const m = measurement(selected);
-  const ids = m.label ? [m.label] : selected.startsWith("femoral") ? [1] : [2];
+  const ids =
+    m.labels ||
+    (m.label ? [m.label] : selected.startsWith("femoral") ? [1] : [2]);
   visibilityFilter = ids;
   meshes.forEach((_, id) => visibility(id, ids.includes(id)));
   dirty = true;
@@ -533,9 +563,10 @@ for (const e of data.evidence.filter((e) => !e.name.endsWith(".png"))) {
   a.textContent = e.stage + "/" + e.name;
   $("downloads").append(a);
 }
+mountParameterCatalog(catalog, data, select);
 view("overview");
 updateSlice();
-select(selected);
+select("deck-4");
 try {
   for (const s of data.structures) {
     const res = await fetch("/assets/" + s.file);

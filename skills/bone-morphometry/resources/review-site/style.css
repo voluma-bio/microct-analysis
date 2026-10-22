@@ -378,3 +378,47 @@ code {
     padding: 16px;
   }
 }
+
+.parameter-slide {
+  width: 100%;
+  display: block;
+  margin-top: 12px;
+  background: white;
+}
+.parameter-status {
+  color: #ffe5a1;
+  font-weight: 600;
+}
+.parameter-table-wrap {
+  overflow: auto;
+  margin: 18px 0;
+}
+.parameter-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+.parameter-table td,
+.parameter-table th {
+  padding: 10px;
+  border-bottom: 1px solid #35414d;
+  vertical-align: top;
+}
+.parameter-table td:first-child {
+  min-width: 230px;
+}
+.parameter-table button {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: #83c9ed;
+  padding: 0;
+}
+.parameter-table th {
+  color: #cbd8e2;
+}
+#parameter-picker {
+  width: 100%;
+  font-size: 12px;
+}

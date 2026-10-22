@@ -25,12 +25,25 @@
     </header>
     <main>
       <aside>
-        <h2>Measurements</h2>
+        <h2>Presentation parameters</h2>
         <p>
-          Select a result to locate its endpoints. All values remain
-          provisional.
+          All 23 targets are mapped below. Selecting one shows its definition,
+          status and related anatomy.
         </p>
-        <div id="measurements"></div>
+        <label
+          >Choose parameter<select id="parameter-picker">
+            <option value="">Choose a slide parameter</option>
+          </select></label
+        >
+        <details>
+          <summary>Earlier measurements</summary>
+          <h2>Measurements</h2>
+          <p>
+            Select a result to locate its endpoints. All values remain
+            provisional.
+          </p>
+          <div id="measurements"></div>
+        </details>
         <section id="details">
           <h3>Review a measurement</h3>
           <p>Choose a measurement above.</p>
@@ -148,6 +161,53 @@
       </section>
     </main>
     <section class="bottom">
+      <h2>All presentation parameters</h2>
+      <p>
+        These are target definitions from your PowerPoint. Prior estimates and
+        candidate-label volumes are shown separately from accepted results.
+        Unmeasured parameters have no numeric result.
+      </p>
+      <p>
+        <a
+          href="/assets/evidence/parameter-deck/uCT%20analysis%20parameters.pdf"
+          target="_blank"
+          >Open the full presentation PDF</a
+        >
+        · <a href="/parameters.json" download>Download parameter definitions</a>
+      </p>
+      <div class="parameter-table-wrap">
+        <table class="parameter-table">
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Status</th>
+              <th>Related result</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody id="parameter-rows"></tbody>
+        </table>
+      </div>
+      <details>
+        <summary>Vertebral parameters (slide 5): no dataset available</summary>
+        <p id="vertebral-note"></p>
+        <ul id="vertebral-rows"></ul>
+        <a href="/assets/evidence/parameter-deck/slide-5.png" target="_blank"
+          >Inspect vertebral ROI diagram</a
+        >
+      </details>
+      <p>
+        Slide 3 specifies a trabecular ROI 50 µm below the growth plate, 200 µm
+        long and 20 µm inward from cortex. At 10.5 µm spacing these are
+        approximately 4.76, 19.05 and 1.90 voxels. The growth-plate datum and
+        ROI boundaries remain unaccepted. Cortical thickness at 100 versus 500
+        µm is unresolved; both are candidate locations.
+      </p>
+      <h3>Additional exploratory measure: node-to-end ratio (slide 4)</h3>
+      <p id="derived-parameter"></p>
+      <a href="/assets/evidence/parameter-deck/slide-4.png" target="_blank"
+        >Inspect node-to-end explanation</a
+      >
       <h2>What still needs review</h2>
       <div class="pending">
         <article>
@@ -181,7 +241,8 @@
       <p>
         Upper-groove placement sensitivity: femoral length 2.387–2.479 mm.
         Width-plane sensitivity: 3.363–3.439 mm. These are not confidence
-        intervals. Supplemental tables were not used.
+        intervals. Supplemental tables were not used to generate the original
+        estimates. Post hoc comparisons are available in the evidence list.
       </p>
       <label>Review stage<select id="stage"></select></label>
       <div id="evidence"></div>

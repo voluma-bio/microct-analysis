@@ -1,0 +1,301 @@
+{
+  "title": "uCT analysis parameters",
+  "source": "uCT analysis parameters.pptx",
+  "parameters": [
+    {
+      "id": 1,
+      "name": "Patella volume",
+      "group": "Joint structures",
+      "slide": 1,
+      "unit": "mm³",
+      "status": "Provisional",
+      "definition": "Mineralized patellar volume; inclusion of the separate proximal ossification needs review.",
+      "method": "Count accepted patellar label voxels × voxel volume. Current core excludes label 12.",
+      "labels": [3, 12],
+      "source_measurement": "patella_core_threshold_volume"
+    },
+    {
+      "id": 2,
+      "name": "Lateral meniscus / osteophyte volume",
+      "group": "Joint structures",
+      "slide": 1,
+      "unit": "mm³",
+      "status": "Candidate label",
+      "definition": "Volume of the lateral mineralized meniscal / osteophyte structure shown on slide 1.",
+      "method": "Existing lateral joint mineralization (label 6) is a candidate only. Confirm anatomy, boundaries and inclusion before calling this meniscus/osteophyte volume.",
+      "labels": [6]
+    },
+    {
+      "id": 3,
+      "name": "Medial meniscus / osteophyte volume",
+      "group": "Joint structures",
+      "slide": 1,
+      "unit": "mm³",
+      "status": "Candidate label",
+      "definition": "Volume of the medial mineralized meniscal / osteophyte structure shown on slide 1.",
+      "method": "Existing medial joint mineralization (label 5) is a candidate only. Confirm anatomy, boundaries and inclusion; unmineralized meniscus is not recovered by this bone threshold.",
+      "labels": [5]
+    },
+    {
+      "id": 4,
+      "name": "Distal femoral length (DFL)",
+      "group": "Femoral geometry",
+      "slide": 1,
+      "unit": "mm",
+      "status": "Placement review",
+      "definition": "Straight 3D distance from midpoint (a) of the upper groove boundary to intercondylar notch (b).",
+      "method": "Explicitly trace the upper groove boundary and its midpoint, then locate the posterior notch. Original A/C endpoints are shown for comparison, not newly validated a/b placements.",
+      "labels": [1],
+      "source_measurement": "femoral_length_provisional"
+    },
+    {
+      "id": 5,
+      "name": "Distal femoral width (DFW)",
+      "group": "Femoral geometry",
+      "slide": 1,
+      "unit": "mm",
+      "status": "Definition mismatch",
+      "definition": "Midpoint (c) of the ridge on the lateral condyle surface to the vertex (d) of the medial condyle.",
+      "method": "Re-identify ridge midpoint and medial vertex in multiple views. Original L/M extremes on W=0 do not establish these anatomical landmarks; old ruler shown only for review.",
+      "labels": [1],
+      "source_measurement": "femoral_width_provisional"
+    },
+    {
+      "id": 6,
+      "name": "Distal femoral width / length",
+      "group": "Femoral geometry",
+      "slide": 1,
+      "unit": "ratio",
+      "status": "Placement review",
+      "definition": "DFW divided by DFL using accepted slide-1 landmarks.",
+      "method": "Recalculate after parameters 4 and 5 are accepted. Existing ratio is derived from prior, unvalidated placements.",
+      "labels": [1],
+      "source_measurement": "femoral_width_length_provisional"
+    },
+    {
+      "id": 7,
+      "name": "Medial subchondral plate thickness",
+      "group": "Tibial epiphysis",
+      "slide": 2,
+      "unit": "µm",
+      "status": "Needs segmentation",
+      "definition": "Thickness of the medial subchondral bone plate beneath the articular surface.",
+      "method": "Separate plate from cortical shell, trabeculae, growth plate and outgrowths; define medial ROI and thickness method before computing a local-thickness distribution.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 8,
+      "name": "Lateral subchondral plate thickness",
+      "group": "Tibial epiphysis",
+      "slide": 2,
+      "unit": "µm",
+      "status": "Needs segmentation",
+      "definition": "Thickness of the lateral subchondral bone plate beneath the articular surface.",
+      "method": "Define lateral plate boundaries and a comparable ROI; report thickness method and summary statistic. Do not substitute trabecular thickness.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 9,
+      "name": "Secondary ossification center: total volume (TV)",
+      "group": "Tibial epiphysis",
+      "slide": 2,
+      "unit": "mm³",
+      "status": "Needs ROI",
+      "definition": "Total tissue volume of the tibial secondary ossification center bounded by articular surface and growth plate.",
+      "method": "Create an anatomical tissue mask including bone and internal spaces, with explicit growth-plate exclusion. The whole tibia label is not this ROI.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 10,
+      "name": "Secondary ossification center: bone volume (BV)",
+      "group": "Tibial epiphysis",
+      "slide": 2,
+      "unit": "mm³",
+      "status": "Needs ROI",
+      "definition": "Mineralized bone volume inside the secondary ossification center tissue ROI.",
+      "method": "Apply the agreed calibrated threshold within parameter 9 ROI; count bone voxels × voxel volume.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 11,
+      "name": "Secondary ossification center: BV/TV",
+      "group": "Tibial epiphysis",
+      "slide": 2,
+      "unit": "%",
+      "status": "Needs ROI",
+      "definition": "Bone volume divided by total tissue volume in the same secondary ossification center ROI.",
+      "method": "100 × parameter 10 / parameter 9. Preserve both masks and threshold provenance.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 12,
+      "name": "Tibial height at secondary ossification center",
+      "group": "Tibial epiphysis",
+      "slide": 2,
+      "unit": "mm",
+      "status": "Landmarks unresolved",
+      "definition": "Articular-surface to growth-plate height. Slide 2 illustrates both maximal height and local compartment heights.",
+      "method": "Record maximum IIOC height separately from medial and lateral local heights. Existing lateral V195 height is related evidence only and is not substituted for this parameter.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 13,
+      "name": "Tibial width at growth plate",
+      "group": "Tibial epiphysis",
+      "slide": 2,
+      "unit": "mm",
+      "status": "Landmarks unresolved",
+      "definition": "Distance between tibial medial and lateral borders at the growth-plate level.",
+      "method": "Review orientation, section and anatomical border placements. Slide 2 illustrates a slanted growth-plate-level line; it does not require a shared transverse plane. The previous junction chord remains unaccepted because its endpoints and correspondence to the illustrated borders need review.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 14,
+      "name": "Tibial height / width",
+      "group": "Tibial epiphysis",
+      "slide": 2,
+      "unit": "ratio",
+      "status": "Landmarks unresolved",
+      "definition": "Accepted tibial height divided by accepted width at the growth plate.",
+      "method": "State which height is used (maximum, medial or lateral); do not mix a local lateral height with an unvalidated junction chord.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 15,
+      "name": "Trabecular ROI tissue volume (TV)",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "mm³",
+      "status": "Needs ROI",
+      "definition": "Tibial shaft trabecular ROI begins 50 µm distal to the growth plate, extends 200 µm, and stays 20 µm inward from the endocortical boundary. Growth-plate datum and cortical mask still need definition.",
+      "method": "Count all tissue-mask voxels, including marrow spaces. At 10.5 µm spacing the requested offsets are 4.76, 19.05 and 1.90 voxels; document physical-distance sampling.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 16,
+      "name": "Trabecular ROI bone volume (BV)",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "mm³",
+      "status": "Needs ROI",
+      "definition": "Mineralized bone volume within the slide-3 trabecular tissue ROI.",
+      "method": "Threshold HU inside the accepted parameter-15 mask. Exclude cortex and growth plate; preserve the bone mask.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 17,
+      "name": "Trabecular ROI BV/TV",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "%",
+      "status": "Needs ROI",
+      "definition": "Bone fraction within the same slide-3 tissue ROI.",
+      "method": "100 × parameter 16 / parameter 15; report threshold and voxel spacing.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 18,
+      "name": "Trabecular number (Tb.N)",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "mm⁻¹",
+      "status": "Needs method + ROI",
+      "definition": "Trabecular number per unit length within the slide-3 ROI.",
+      "method": "Choose and document a direct 3D or specified model-based method. Do not silently substitute skeleton branch count or 1/Tb.Th.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 19,
+      "name": "Trabecular thickness (Tb.Th)",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "µm",
+      "status": "Needs method + ROI",
+      "definition": "Thickness distribution of segmented trabecular bone inside the ROI.",
+      "method": "Use a validated 3D local-thickness method and define ROI-edge handling. Two times the distance transform at each voxel is not a complete local-thickness implementation.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 20,
+      "name": "Trabecular separation (Tb.Sp)",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "µm",
+      "status": "Needs method + ROI",
+      "definition": "Spacing of marrow spaces between trabeculae inside the ROI.",
+      "method": "Apply a documented spacing method to the marrow compartment, with ROI-boundary handling and voxel-resolution assessment.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 21,
+      "name": "Trabecular nodes (Tb.Nd)",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "count",
+      "status": "Exploratory method",
+      "definition": "Junctions where three or more trabecular branches meet; slide 3 labels this a developing parameter.",
+      "method": "Define a skeleton/graph method, merge adjacent junction voxels, specify pruning and exclude artificial ROI-cut junctions. A voxel-neighbor count is not a node count.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 22,
+      "name": "Trabecular ends / termini (Tb.Tm)",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "count",
+      "status": "Exploratory method",
+      "definition": "Free endpoints of the trabecular graph; slide 4 discusses a node-to-end ratio.",
+      "method": "Count degree-1 graph endpoints after declared pruning. Distinguish genuine termini from branches cut by the ROI boundary; define zero-denominator behavior for any derived ratio.",
+      "labels": [2],
+      "context": "tibia"
+    },
+    {
+      "id": 23,
+      "name": "Cortical thickness",
+      "group": "Tibial shaft",
+      "slide": 3,
+      "unit": "µm",
+      "status": "Location unresolved",
+      "definition": "Cortical shell thickness below the growth plate; slide 3 asks about 100 µm versus 500 µm locations.",
+      "method": "Keep both candidate locations listed until the user selects a level. Define periosteal/endosteal contours, section or slab thickness and thickness statistic before measuring.",
+      "labels": [2],
+      "context": "tibia"
+    }
+  ],
+  "vertebral": {
+    "slide": 5,
+    "parameter_ids": [15, 16, 17, 18, 19, 20, 21, 22, 23],
+    "status": "Unavailable in this scan",
+    "definition": "Slide 5 repeats parameters 15–23 for vertebral trabecular bone and mid-vertebral cortical thickness. No vertebra is present in OA6-1RK; a separate vertebral dataset and ROI are required."
+  },
+  "notes": [
+    "Slide 6 is blank. Slide 7 contains illustrative images without additional numbered parameters.",
+    "The presentation defines target measurements, not accepted sample results. Existing measurements retain their original provenance.",
+    "The cortical 100 µm and 500 µm locations remain candidates; neither has been accepted."
+  ],
+  "derived": [
+    {
+      "name": "Trabecular node-to-end ratio (Tb.Nd/Tb.Tm)",
+      "slide": 4,
+      "status": "Exploratory; not measured",
+      "definition": "Accepted trabecular graph node count divided by accepted terminus count in the same ROI.",
+      "method": "Requires parameters 21 and 22, a declared graph/pruning/boundary method, and a zero-denominator policy. Do not interpret as a validated OA/osteoporosis severity cutoff."
+    }
+  ],
+  "source_sha256": "c3aad8308e36d9be333e86d239c0b854855ac674ef15f715c4c165c9c77d800c"
+}

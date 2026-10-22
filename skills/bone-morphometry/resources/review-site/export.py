@@ -68,10 +68,13 @@ def export(run, out, study_pdf=None):
         "review-09-landmarks",
         "review-10-measurements",
         "final-measurements",
+        "supplement-comparison",
+        "placement-audit",
+        "parameter-deck",
     ]
     for directory in dirs:
         for p in sorted((run / directory).glob("*")):
-            if p.suffix not in {".png", ".json", ".md", ".py"}:
+            if p.suffix not in {".png", ".json", ".md", ".py", ".pdf", ".pptx"}:
                 continue
             dest = out / "evidence" / directory / p.name
             dest.parent.mkdir(parents=True, exist_ok=True)

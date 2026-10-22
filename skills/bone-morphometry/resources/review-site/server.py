@@ -80,7 +80,14 @@ def main():
                     elif path.startswith("/vendor/"):
                         root = (APP / "node_modules/three").resolve()
                         relative = path[len("/vendor/") :]
-                    elif path in ("/", "/index.html", "/app.js", "/style.css"):
+                    elif path in (
+                        "/",
+                        "/index.html",
+                        "/app.js",
+                        "/style.css",
+                        "/parameters.json",
+                        "/parameter-panel.js",
+                    ):
                         root = APP
                         relative = path.lstrip("/") or "index.html"
                     else:

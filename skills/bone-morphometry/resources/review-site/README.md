@@ -53,3 +53,37 @@ systemd-run --user --unit=microct-review --description='OA6-1RK private micro-CT
 
 The exporter accepts `--study-pdf PATH` to include only the explicitly supplied
 main manuscript. Source scripts and intake/filter provenance are also exported.
+
+## Presentation parameter inventory
+
+`parameters.json` records all 23 numbered definitions from the supplied
+`uCT analysis parameters.pptx`. `parameter-panel.js` connects each definition to
+its source slide, related measurements and candidate anatomical labels. The
+presentation PDF, slide images, copied PPTX and source hash are stored under
+`data/python-protocol-run/parameter-deck/` and exported as review evidence.
+
+The inventory is not a claim that all parameters have been measured. Prior
+estimates retain their original provenance. Candidate joint-mineralization
+volumes are not accepted meniscus volumes. Unresolved parameters have no value
+or ruler. Slide 5's vertebral parameters 15–23 are listed as unavailable because
+this dataset has no vertebra. Slide 6 is blank; slide 7 adds illustrative images.
+
+The deck specifies femoral width using a lateral ridge midpoint and medial
+vertex, so the earlier W=0 extrema measurement is explicitly marked as a
+definition mismatch. Tibial trabecular ROI offsets are recorded as 50 µm distal,
+200 µm long and 20 µm inward from cortex; no ROI mask is invented before the
+growth-plate and cortical boundaries are accepted. Cortical thickness locations
+at 100 versus 500 µm remain unresolved candidates.
+
+Run the parameter-mapping checks with:
+
+```bash
+node --test skills/bone-morphometry/resources/review-site/parameter-panel.test.js
+```
+
+The exporter now includes the supplemental-comparison and placement-audit
+directories, so rebuilding review assets retains those investigation records.
+
+Slide 4 also contributes an unnumbered exploratory node-to-end ratio. Slide 2
+illustrates a slanted growth-plate-level width; no common transverse plane is
+imposed by the catalog. Previous tibial endpoints still require validation.

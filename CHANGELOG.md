@@ -5,6 +5,9 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Presentation-derived catalog of 23 micro-CT parameters with source slides,
+  anatomical context, per-parameter notes, explicit unresolved measurements,
+  and vertebral data requirements on the private review site.
 - OA6-1RK session record with session ID, preserved artifact paths, original
   measurement checksum, and outstanding placement-review findings.
 - Private 3D review site with registered measurement rulers, 12-structure toggles,
