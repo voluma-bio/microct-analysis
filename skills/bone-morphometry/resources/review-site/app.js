@@ -12,6 +12,10 @@ const $ = (id) => document.getElementById(id);
 const response = await fetch("/assets/manifest.json");
 if (!response.ok) throw Error("Could not load review manifest");
 const data = await response.json();
+for (const p of catalog.parameters)
+  Object.assign(p, data.parameter_overrides?.[p.id] || {});
+const alignedSource = () =>
+  $("source").value === "tibia" || $("source").value.startsWith("iioc-");
 const names = {
   femoral_length_provisional: "Femoral length",
   femoral_width_provisional: "Femoral width",
@@ -31,6 +35,7 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true,
   preserveDrawingBuffer: true,
 });
+renderer.localClippingEnabled = true;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 viewport.append(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -47,6 +52,7 @@ scene.add(rulers);
 let selected = "femoral_length_provisional",
   labels = [],
   slicePlane,
+  cutPlane = null,
   visibilityFilter = null,
   dirty = true;
 function measurement(key) {
@@ -62,9 +68,12 @@ function measurement(key) {
     value: s.volume_mm3,
     unit: "mm^3",
     definition:
+      s.definition ||
       "Review this segmentation and anatomical assignment. Volume describes only mineralized voxels inside the acquired field; femoral, tibial and fibular shafts are cropped. It is not a whole-bone volume.",
   };
 }
+for (const [key, m] of Object.entries(data.measurements))
+  if (key.startsWith("iioc_")) names[key] = m.title || key.replaceAll("_", " ");
 for (const s of data.structures)
   names["structure-" + s.label] = "Structure: " + s.name.replaceAll("-", " ");
 const stateKey = "microct-review:" + data.grid_id;
@@ -91,12 +100,16 @@ function view(mode) {
     up = new THREE.Vector3(0, 0, -1),
     distance = 16;
   if (mode !== "overview") {
-    const f = data.frames.femur,
+    const tibia = mode.startsWith("tibia-");
+    mode = mode.replace("tibia-", "");
+    const f = tibia ? data.frames.tibia : data.frames.femur,
       b = f.basis_columns_xyz;
     target = v(world(f.origin_xyz));
     direction = new THREE.Vector3(
       ...b.map((row) => row[mode === "joint" ? 2 : 1]),
-    ).multiplyScalar(mode === "posterior" ? -1 : 1);
+    ).multiplyScalar(
+      mode === "posterior" || (tibia && mode === "joint") ? -1 : 1,
+    );
     up = new THREE.Vector3(
       ...b.map((row) => row[mode === "joint" ? 1 : 2]),
     ).multiplyScalar(mode === "joint" ? 1 : -1);
@@ -154,18 +167,24 @@ function select(key) {
     definition.textContent =
       "Width divided by length. Both measurements remain provisional.";
   $("details").append(definition);
-  appendParameterDetails(m, data, () => {
-    $("isolate").click();
-    if (m.parameter.context === "tibia") {
-      $("source").value = "tibia";
-      $("axis").value = "1";
-      configureSlice();
-      $("slice-index").value = 195;
-      updateSlice();
-    }
-    $("focus").click();
-    $("viewport").scrollIntoView({ behavior: "smooth", block: "center" });
-  });
+  appendParameterDetails(
+    m,
+    data,
+    () => {
+      $("isolate").click();
+      if (m.parameter.context === "tibia" || m.parameter.context === "iioc") {
+        $("source").value =
+          m.parameter.context === "iioc" ? "iioc-tissue" : "tibia";
+        $("axis").value = "1";
+        configureSlice();
+        $("slice-index").value = 195;
+        updateSlice();
+      }
+      $("focus").click();
+      $("viewport").scrollIntoView({ behavior: "smooth", block: "center" });
+    },
+    select,
+  );
   if (m.points_scene_mm) {
     const color = key.includes("chord") ? 0xf0ad4e : 0x62e3ef;
     const points = m.points_scene_mm.map(v),
@@ -190,7 +209,7 @@ function select(key) {
     mark(midpoint.toArray(), `${m.value.toFixed(3)} mm`, color);
     const small = document.createElement("p");
     small.textContent =
-      "Ruler endpoints are exact original-grid annotations. Display surfaces use a 2-voxel sampling interval. Hidden rulers are projected through bone when enabled.";
+      "Ruler coordinates are recorded in the original image frame. Original structures use 2-voxel display sampling; IIOC masks use 1-voxel sampling. Hidden rulers are projected through bone when enabled.";
     $("details").append(small);
     m.points_xyz.forEach((p, i) => {
       const b = document.createElement("button");
@@ -204,6 +223,13 @@ function select(key) {
       };
       $("details").append(b);
     });
+  }
+  if (m.points_aligned_uvw) {
+    $("source").value = "iioc-tissue";
+    $("axis").value = "1";
+    configureSlice();
+    $("slice-index").value = Math.round(m.points_aligned_uvw[0][1]);
+    updateSlice();
   }
   if (key === "lateral_tibial_height_V195" || key.includes("chord")) {
     $("source").value = "tibia";
@@ -265,6 +291,14 @@ $("export").onclick = () =>
             notes,
             measurements: data.measurements,
             parameter_definitions: catalog,
+            slice_review: {
+              source: $("source").value,
+              axis: Number($("axis").value),
+              index: Number($("slice-index").value),
+              overlay: $("overlay").checked,
+              cutaway: $("cutaway").checked,
+              plane3d: $("plane3d").checked,
+            },
             camera: {
               position: camera.position.toArray(),
               target: controls.target.toArray(),
@@ -383,7 +417,12 @@ renderer.setAnimationLoop(() => {
       const distance = direction.length();
       labelRay.set(camera.position, direction.normalize());
       labelRay.far = Math.max(0, distance - 0.05);
-      occluded = labelRay.intersectObjects([...meshes.values()].filter(m => m.visible), false).length > 0;
+      occluded = labelRay
+        .intersectObjects(
+          [...meshes.values()].filter((m) => m.visible),
+          false,
+        )
+        .some((hit) => !cutPlane || cutPlane.distanceToPoint(hit.point) >= 0);
     }
     element.style.display = p.z > 1 || p.z < -1 || occluded ? "none" : "block";
     element.style.left = ((p.x + 1) / 2) * viewport.clientWidth + 8 + "px";
@@ -392,7 +431,7 @@ renderer.setAnimationLoop(() => {
 });
 let sliceVersion = 0;
 function shape() {
-  return $("source").value === "tibia" ? [300, 340, 420] : data.shape_zyx;
+  return alignedSource() ? [300, 340, 420] : data.shape_zyx;
 }
 function configureSlice() {
   const a = Number($("axis").value);
@@ -403,7 +442,7 @@ function configureSlice() {
   );
 }
 function slicePoint(coords) {
-  if ($("source").value === "tibia") {
+  if (alignedSource()) {
     const f = data.frames.tibia;
     coords = f.output_xyz_to_original_xyz_matrix.map((row, i) =>
       row.reduce(
@@ -461,25 +500,37 @@ async function updateSlice() {
       slicePlane = null;
       dirty = true;
     }
+    // Array planes retain ascending rows/columns, exactly as in the PNG.
+    const sz = shape(),
+      fixed = 2 - axis,
+      others = [2, 1, 0].filter((i) => i !== fixed),
+      row = others[0],
+      col = others[1];
+    const coords = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ].map(([c, r]) => {
+      const xyz = [0, 0, 0];
+      xyz[fixed] = index;
+      xyz[col] = c * (sz[2 - col] - 1);
+      xyz[row] = r * (sz[2 - row] - 1);
+      return slicePoint(xyz);
+    });
+    cutPlane = null;
+    if ($("cutaway").checked) {
+      cutPlane = new THREE.Plane().setFromCoplanarPoints(
+        ...coords.slice(0, 3).map(v),
+      );
+      if (cutPlane.distanceToPoint(camera.position) > 0) cutPlane.negate();
+    }
+    for (const mesh of meshes.values()) {
+      mesh.material.clippingPlanes = cutPlane ? [cutPlane] : [];
+      mesh.material.needsUpdate = true;
+    }
+    dirty = true;
     if ($("plane3d").checked) {
-      // Array planes retain ascending rows/columns, exactly as in the PNG.
-      const sz = shape(),
-        fixed = 2 - axis,
-        others = [2, 1, 0].filter((i) => i !== fixed),
-        row = others[0],
-        col = others[1];
-      const coords = [
-        [0, 0],
-        [1, 0],
-        [1, 1],
-        [0, 1],
-      ].map(([c, r]) => {
-        const xyz = [0, 0, 0];
-        xyz[fixed] = index;
-        xyz[col] = c * (sz[2 - col] - 1);
-        xyz[row] = r * (sz[2 - row] - 1);
-        return slicePoint(xyz);
-      });
       const geo = new THREE.BufferGeometry();
       geo.setAttribute(
         "position",
@@ -503,7 +554,7 @@ async function updateSlice() {
       dirty = true;
     }
     $("slice-coordinate").textContent =
-      `${$("source").value === "tibia" ? "Aligned UVW" : "Original XYZ"} coordinates; fixed ${$("source").value === "tibia" ? "WVU"[axis] : "ZYX"[axis]} = ${index}. 10.5 µm spacing.`;
+      `${alignedSource() ? "Aligned UVW" : "Original XYZ"} coordinates; fixed ${alignedSource() ? "WVU"[axis] : "ZYX"[axis]} = ${index}. 10.5 µm spacing.`;
   } catch (e) {
     if (version === sliceVersion) $("slice-status").textContent = e.message;
   }
@@ -513,7 +564,7 @@ for (const id of ["source", "axis"])
     configureSlice();
     updateSlice();
   };
-for (const id of ["overlay", "plane3d", "low", "high"])
+for (const id of ["overlay", "plane3d", "cutaway", "low", "high"])
   $(id).onchange = updateSlice;
 let timer;
 $("slice-index").oninput = () => {
@@ -577,7 +628,13 @@ for (const e of data.evidence.filter((e) => !e.name.endsWith(".png"))) {
 mountParameterCatalog(catalog, data, select);
 view("overview");
 updateSlice();
-select("deck-4");
+const initialParameter =
+  new URLSearchParams(location.search).get("parameter") || "4";
+select(
+  catalog.parameters.some((p) => String(p.id) === initialParameter)
+    ? `deck-${initialParameter}`
+    : "deck-4",
+);
 try {
   for (const s of data.structures) {
     const res = await fetch("/assets/" + s.file);
@@ -598,6 +655,7 @@ try {
     geometry.computeBoundingSphere();
     const material = new THREE.MeshStandardMaterial({
       color: s.color,
+      clippingPlanes: cutPlane ? [cutPlane] : [],
       roughness: 0.85,
       metalness: 0,
       transparent: Number($("opacity").value) < 1,
@@ -635,7 +693,7 @@ try {
     $("load").textContent =
       `Loaded ${meshes.size} / ${data.structures.length} structures`;
   }
-  $("load").textContent = "12 structures ready";
+  $("load").textContent = `${meshes.size} structures ready`;
   setTimeout(() => ($("load").style.display = "none"), 2000);
 } catch (e) {
   $("load").textContent = "Could not load all structures: " + e.message;
@@ -648,4 +706,5 @@ window.reviewState = () => ({
   selected,
   landmarks: labels.map((l) => l.point.toArray()),
   slicePlane: !!slicePlane,
+  cutaway: !!cutPlane,
 });

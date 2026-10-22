@@ -22,6 +22,10 @@ COLORS = [
     "#b87848",
     "#579da3",
     "#a84c73",
+    "#66bb66",
+    "#e3bb78",
+    "#d96eb4",
+    "#49cbd4",
 ]
 
 
@@ -71,6 +75,7 @@ def export(run, out, study_pdf=None):
         "supplement-comparison",
         "placement-audit",
         "parameter-deck",
+        "iioc",
     ]
     for directory in dirs:
         for p in sorted((run / directory).glob("*")):
@@ -112,6 +117,12 @@ def export(run, out, study_pdf=None):
         frames=frames,
         display="Surfaces sampled every 2 voxels; no geometry smoothing. Measurements use original coordinates and full-resolution label counts.",
     )
+    additions = run / "iioc/review-additions.json"
+    if additions.exists():
+        extra = json.loads(additions.read_text())
+        manifest["structures"].extend(extra["structures"])
+        manifest["measurements"].update(extra["measurements"])
+        manifest["parameter_overrides"] = extra.get("parameter_overrides", {})
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"Exported {len(structures)} structures and {len(evidence)} evidence files to {out}")
 

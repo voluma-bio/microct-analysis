@@ -51,6 +51,16 @@ def main():
         ),
     }
 
+    for name, file, label in [
+        ("iioc-tissue", "tissue-mask.npy", 13),
+        ("iioc-bone", "bone-mask.npy", 14),
+        ("iioc-medial", "medial-plate-mask.npy", 15),
+        ("iioc-lateral", "lateral-plate-mask.npy", 16),
+    ]:
+        path = a.run / "iioc" / file
+        if path.exists():
+            arrays[name] = (arrays["tibia"][0], np.load(path, mmap_mode="r").astype(np.uint8) * label)
+
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             url = urlsplit(self.path)

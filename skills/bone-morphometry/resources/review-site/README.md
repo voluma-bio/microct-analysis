@@ -87,3 +87,20 @@ directories, so rebuilding review assets retains those investigation records.
 Slide 4 also contributes an unnumbered exploratory node-to-end ratio. Slide 2
 illustrates a slanted growth-plate-level width; no common transverse plane is
 imposed by the catalog. Previous tibial endpoints still require validation.
+
+### IIOC review run
+
+Optional `iioc/review-additions.json` adds four separate surfaces (tissue envelope,
+mineralized bone, and two directional plate candidates), original-grid volume
+results and registered rulers. `?parameter=9` opens IIOC volume; parameter 12
+exposes the distinct height conventions. The Image selector supplies separate
+aligned mask overlays. **Cut away at slice** removes the near side of meshes
+while preserving opaque surfaces; Plane in 3D can display the registered image
+at the cut. Tibia anterior/posterior/plateau views are independent of femur views.
+
+The growth-plate boundary and compartment landmarks remain provisional. Plate
+first-run thickness is a diagnostic candidate, not an accepted anatomical plate
+measurement. See the tracked IIOC review record in `docs/findings/` and the
+exported `iioc/REPORT.md` for definitions, QC, sensitivity and reproduction.
+Restart the server after regenerating masks because overlay arrays are loaded
+at startup. Original final-measurements files are not overwritten.

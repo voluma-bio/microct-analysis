@@ -28,7 +28,7 @@ export function formatRelated(parameter, data) {
       : p.prior_unit === "1"
         ? ""
         : ` ${p.prior_unit}`;
-  return `${p.prior_value.toFixed(3)}${unit} (${parameter.status === "Candidate label" ? "candidate label" : "prior estimate"})`;
+  return `${p.prior_value.toFixed(3)}${unit} (${parameter.status === "Candidate label" ? "candidate label" : parameter.context === "iioc" ? "provisional measurement" : "prior estimate"})`;
 }
 
 export function mountParameterCatalog(catalog, data, select) {
@@ -83,7 +83,12 @@ export function mountParameterCatalog(catalog, data, select) {
   }
 }
 
-export function appendParameterDetails(m, data, showAnatomy) {
+export function appendParameterDetails(
+  m,
+  data,
+  showAnatomy,
+  selectMeasurement,
+) {
   if (!m.parameter) return;
   const p = m.parameter,
     details = document.getElementById("details");
@@ -94,13 +99,48 @@ export function appendParameterDetails(m, data, showAnatomy) {
   const related = document.createElement("p");
   related.textContent = `Related result: ${formatRelated(p, data)}. This is not a newly accepted measurement under the slide definition.`;
   details.append(related);
+  if (p.context === "iioc") {
+    related.textContent = `Result: ${formatRelated(p, data)}. Boundary and measurement placement require review.`;
+    const definition = document.createElement("p");
+    definition.textContent =
+      m.definition +
+      " " +
+      (data.measurements[p.source_measurement]?.definition || "");
+    details.append(definition);
+    for (const key of p.related_measurements || []) {
+      const item = data.measurements[key];
+      const b = document.createElement("button");
+      b.textContent = `${key.replaceAll("iioc_", "").replaceAll("_", " ")}: ${item.value.toFixed(3)} ${item.unit}`;
+      b.onclick = () => selectMeasurement(key);
+      details.append(b);
+    }
+    for (const name of [
+      "REPORT.md",
+      "qc-coronal-80.png",
+      "qc-coronal-220.png",
+      "qc-sagittal.png",
+      "qc-axial.png",
+      "qc-rulers.png",
+      "results.json",
+    ]) {
+      const a = document.createElement("a");
+      a.href = `/assets/evidence/iioc/${name}`;
+      a.target = "_blank";
+      a.textContent = `Review ${name}`;
+      a.style.display = "block";
+      details.append(a);
+    }
+  }
   const method = document.createElement("p");
   method.textContent = p.method;
   details.append(method);
   const button = document.createElement("button");
-  button.textContent = p.context
-    ? "Inspect tibial context"
-    : "Isolate linked structures";
+  button.textContent =
+    p.context === "iioc"
+      ? "Inspect IIOC segmentation"
+      : p.context
+        ? "Inspect tibial context"
+        : "Isolate linked structures";
   button.onclick = showAnatomy;
   details.append(button);
   const figure = document.createElement("a");
@@ -112,7 +152,7 @@ export function appendParameterDetails(m, data, showAnatomy) {
   img.alt = `Source slide ${p.slide}, open to inspect full-size annotations`;
   figure.append(img);
   details.append(figure);
-  if (p.context) {
+  if (p.context && p.context !== "iioc") {
     const note = document.createElement("p");
     note.textContent =
       "The tibia shown is anatomical context only. The requested plate, growth-plate surface or trabecular ROI has not been segmented.";

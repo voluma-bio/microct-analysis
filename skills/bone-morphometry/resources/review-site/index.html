@@ -88,10 +88,11 @@
             ><button data-view="anterior">Femur anterior</button
             ><button data-view="posterior">Femur posterior</button
             ><button data-view="joint">Femur notch</button>
+            <button data-view="tibia-anterior">Tibia anterior</button>
+            <button data-view="tibia-posterior">Tibia posterior</button>
+            <button data-view="tibia-joint">Tibial plateau</button>
           </div>
-          <label
-            ><input type="checkbox" id="xray" /> Show hidden
-            rulers</label
+          <label><input type="checkbox" id="xray" /> Show hidden rulers</label
           ><button id="focus">Focus selection</button
           ><button id="capture">Save 3D image</button>
         </div>
@@ -111,6 +112,10 @@
               <option value="filtered">Median-filtered HU</option>
               <option value="raw">Original HU</option>
               <option value="tibia">Tibia-aligned HU</option>
+              <option value="iioc-tissue">IIOC tissue envelope</option>
+              <option value="iioc-bone">IIOC mineralized bone</option>
+              <option value="iioc-medial">Medial plate patch</option>
+              <option value="iioc-lateral">Lateral plate patch</option>
             </select></label
           ><label
             >Plane<select id="axis">
@@ -121,6 +126,7 @@
           ><label
             ><input type="checkbox" id="overlay" checked /> Segmentation</label
           ><label><input type="checkbox" id="plane3d" />Plane in 3D</label>
+          <label><input type="checkbox" id="cutaway" />Cut away at slice</label>
         </div>
         <div class="slice-layout">
           <div class="slice-image">

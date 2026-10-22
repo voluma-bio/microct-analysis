@@ -5,6 +5,9 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Provisional IIOC tissue/bone masks, original-grid volumes, explicit growth-plate
+  traces, height conventions, width and directional plate candidates; multi-plane
+  QC, sensitivity, independent placement review and opaque 3D cutaway controls.
 - Presentation-derived catalog of 23 micro-CT parameters with source slides,
   anatomical context, per-parameter notes, explicit unresolved measurements,
   and vertebral data requirements on the private review site.
