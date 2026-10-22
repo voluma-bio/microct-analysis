@@ -1,0 +1,24 @@
+{
+  "bone": "tibia",
+  "compartment": "Trabecular portion of tibial secondary ossification center (IIOC)",
+  "status": "Provisional image-traced endocortical and sub-plate boundary",
+  "grid": "tibia-aligned U,V,W indices at 0.0105 mm isotropic",
+  "v_limits": [90,305],
+  "growth_face_clearance_voxels": 2,
+  "outer_shell_clearance_voxels": 2,
+  "upper_inner_boundary_curves": {
+    "90": [[90,140],[120,136],[160,138],[190,151],[220,166],[260,170],[285,177]],
+    "100": [[80,140],[95,123],[120,122],[170,125],[200,145],[230,158],[260,163],[290,164],[300,176]],
+    "130": [[65,140],[85,122],[110,108],[140,106],[175,110],[195,130],[215,149],[245,146],[265,150],[300,163],[330,176]],
+    "160": [[65,140],[90,117],[110,99],[140,104],[170,101],[190,105],[215,133],[240,139],[260,146],[290,155],[320,169],[345,179]],
+    "190": [[80,138],[100,103],[120,97],[140,98],[165,102],[185,109],[210,131],[240,133],[270,143],[300,153],[325,166],[345,176]],
+    "220": [[70,141],[95,114],[120,105],[145,102],[175,112],[200,120],[230,127],[260,133],[290,145],[320,160],[335,170]],
+    "250": [[85,148],[105,127],[135,119],[160,122],[190,125],[220,130],[245,137],[270,146],[290,156],[315,166]],
+    "280": [[110,157],[135,139],[165,149],[195,147],[220,156],[245,158],[270,166],[290,174]],
+    "300": [[135,165],[155,163],[180,175],[200,178],[220,187],[235,201]],
+    "305": [[170,185],[195,185],[210,198]]
+  },
+  "interpretation": "Upper points trace transition under plate into trabecular compartment; lateral endpoints constrain inner shell. Include solid trabecular bridges and marrow, not individual pore masks. Intersect parent IIOC, exclude proximal growth-plate face by 2 voxels and outer surface by 2 voxels. Dense medial transition remains uncertain.",
+  "deviation_from_paper": "User-requested strictly sub-plate, above-growth-plate trabecular IIOC ROI; narrower than paper wording including all noncortical solid and trabecular tissue through portions of the growth-plate region.",
+  "height_revision": "User requires direct rulers after tibial orientation correction. Slice counting is retired from primary reporting and height/width ratio."
+}

@@ -5,6 +5,8 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Tibial IIOC trabecular ROI, same-grid TV/BV/BVTV, 3D sphere Tb.Th/Tb.Sp,
+  explicitly model-derived Tb.N, input hashes, phantom checks and 3D/slice review.
 - Provisional IIOC tissue/bone masks, original-grid volumes, explicit growth-plate
   traces, height conventions, width and directional plate candidates; multi-plane
   QC, sensitivity, independent placement review and opaque 3D cutaway controls.
@@ -23,6 +25,8 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   separation, and reslicing; documented protocol ambiguities and scope limits.
 
 ### Changed
+- Tibial IIOC heights and height/width ratio use direct endpoint distances after
+  orientation correction; slice-count height retired from primary reporting.
 - Review surfaces default to full opacity; hidden rulers and landmark labels
   are occluded by bone unless explicitly enabled.
 - `@microct-study-design`: `opus46` fallback → `opus`. `@microct-analyst`: `sonnet5` fallback → `sonnet`.

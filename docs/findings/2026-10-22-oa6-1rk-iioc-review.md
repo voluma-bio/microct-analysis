@@ -18,11 +18,16 @@ are tracked. Existing final measurements remain unchanged (SHA256
 | Whole-IIOC TV | 3.45472 mm³ |
 | Whole-IIOC BV | 2.32955 mm³ |
 | BV/TV | 67.431% |
-| Maximum local shaft-direction height | 0.92050 mm |
-| Paper slice-onset height | 0.63000 mm |
+| Direct maximal height after tibial orientation correction | 0.92050 mm |
 | Lateral midpoint height, V218 | 0.63315 mm |
 | Medial midpoint height, V218 | 0.46358 mm |
 | Widest screened section, manually refined chord V173 | 3.61548 mm |
+
+Researcher revision: heights are direct Euclidean endpoint distances after tibial
+orientation correction; slice counting is retired from primary results and
+normalization. Direct maximal height / width is 0.25460. See the
+[tibial trabecular follow-up](2026-10-22-oa6-1rk-tibial-trabecular-review.md)
+for the separate trabecular compartment and six morphometry results.
 
 The width is a maximal-width candidate, not an exhaustively validated maximum.
 Plate first-run medians are 0.294 mm lateral and 0.399 mm medial, **not accepted

@@ -73,7 +73,8 @@ function measurement(key) {
   };
 }
 for (const [key, m] of Object.entries(data.measurements))
-  if (key.startsWith("iioc_")) names[key] = m.title || key.replaceAll("_", " ");
+  if (key.startsWith("iioc_") || key.startsWith("tibial_trab_"))
+    names[key] = m.title || key.replaceAll("_", " ");
 for (const s of data.structures)
   names["structure-" + s.label] = "Structure: " + s.name.replaceAll("-", " ");
 const stateKey = "microct-review:" + data.grid_id;
@@ -163,10 +164,45 @@ function select(key) {
   definition.textContent =
     m.definition ||
     "Mineralized label volume from the original grid; separate ossifications are not combined. All structure volumes are segmented voxel volumes.";
-  if (m.unit === "1" && !m.parameter)
+  if (key === "femoral_width_length_provisional" && !m.parameter)
     definition.textContent =
       "Width divided by length. Both measurements remain provisional.";
   $("details").append(definition);
+  if (!m.parameter && Number.isFinite(m.value)) {
+    const result = document.createElement("p");
+    result.textContent = `${m.value.toFixed(4)} ${m.unit === "1" ? "(fraction)" : m.unit || ""} · ${m.status || "Review estimate"}`;
+    $("details").append(result);
+  }
+  if (m.evidence_stage === "tibial-trabecular") {
+    for (const file of [
+      "REPORT.md",
+      "qc-coronal-100.png",
+      "qc-coronal-220.png",
+      "qc-sagittal.png",
+      "qc-sphere-maps.png",
+      "results.json",
+    ]) {
+      const link = document.createElement("a");
+      link.href = `/assets/evidence/tibial-trabecular/${file}`;
+      link.target = "_blank";
+      link.textContent = `Review ${file}`;
+      link.style.display = "block";
+      $("details").append(link);
+    }
+    const inspect = document.createElement("button");
+    inspect.textContent = "Inspect tibial trabecular segmentation";
+    inspect.onclick = () => {
+      $("isolate").click();
+      view("tibia-anterior");
+      $("focus").click();
+    };
+    $("details").append(inspect);
+    $("source").value = m.label === 18 ? "iioc-trab-bone" : "iioc-trab-tissue";
+    $("axis").value = "1";
+    configureSlice();
+    $("slice-index").value = 190;
+    updateSlice();
+  }
   appendParameterDetails(
     m,
     data,
@@ -250,10 +286,18 @@ for (const [key, m] of Object.entries(data.measurements)) {
   const value = document.createElement("strong");
   value.textContent =
     m.value.toFixed(3) +
-    (m.unit === "1" ? "" : m.unit === "mm^3" ? " mm³" : " mm");
+    (m.unit === "1"
+      ? " (fraction)"
+      : m.unit === "mm^3"
+        ? " mm³"
+        : ` ${m.unit}`);
   b.append(title, value);
   b.onclick = () => select(key);
-  $("measurements").append(b);
+  $(
+    key.startsWith("tibial_trab_")
+      ? "tibial-trabecular-metrics"
+      : "measurements",
+  ).append(b);
 }
 function saveNotes() {
   notes[selected] = {
@@ -628,6 +672,9 @@ for (const e of data.evidence.filter((e) => !e.name.endsWith(".png"))) {
 mountParameterCatalog(catalog, data, select);
 view("overview");
 updateSlice();
+const initialMeasurement = new URLSearchParams(location.search).get(
+  "measurement",
+);
 const initialParameter =
   new URLSearchParams(location.search).get("parameter") || "4";
 select(
@@ -635,6 +682,9 @@ select(
     ? `deck-${initialParameter}`
     : "deck-4",
 );
+
+if (initialMeasurement && data.measurements[initialMeasurement])
+  select(initialMeasurement);
 try {
   for (const s of data.structures) {
     const res = await fetch("/assets/" + s.file);

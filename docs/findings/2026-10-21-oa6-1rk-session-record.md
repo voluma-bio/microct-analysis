@@ -83,3 +83,10 @@ measurements and multi-plane QC are preserved in `data/python-protocol-run/iioc/
 See [IIOC review record](2026-10-22-oa6-1rk-iioc-review.md) for results, limits and
 reproduction. Plate thicknesses remain directional candidates requiring lower
 boundary review; the primary volume and height estimates remain provisional.
+
+### Tibial trabecular and direct-height correction
+
+The researcher requested tibial IIOC trabecular TV/BV/BVTV/Tb.Th/Tb.N/Tb.Sp,
+and direct heights after orientation correction rather than slice counting.
+See [revised analysis](2026-10-22-oa6-1rk-tibial-trabecular-review.md).
+Masks and maps are in `data/python-protocol-run/tibial-trabecular/`.

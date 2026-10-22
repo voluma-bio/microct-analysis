@@ -142,6 +142,13 @@ def run(root):
             m["points_xyz"] = (
                 p @ np.array(frame["output_xyz_to_original_xyz_matrix"]).T + frame["output_xyz_to_original_xyz_offset"]
             ).tolist()
+            affine = np.array(meta["affine_xyz_to_world_mm"])
+            endpoints_mm = np.array(m["points_xyz"]) @ affine[:3, :3].T + affine[:3, 3]
+            m["value"] = float(np.linalg.norm(endpoints_mm[1] - endpoints_mm[0]))
+            m["distance_method"] = (
+                "Direct Euclidean endpoint distance after tibial orientation correction; no slice counting"
+            )
+        m["bone"] = "tibia"
         measurements[key] = m
 
     add(
@@ -172,7 +179,7 @@ def run(root):
         "iioc_max_local_height",
         local_height[v, u] * SPACING,
         "mm",
-        "Largest shaft-direction local height in interior footprint, searched all aligned slices; surface to proximal growth-plate face. Distinct from paper slice-count height.",
+        "Direct maximal tibial IIOC height after orientation correction: articular surface to proximal growth-plate face, parallel to corrected tibial shaft; searched all aligned slices.",
         [[u, v, top[v, u]], [u, v, gp[v, u]]],
     )
     # Global onset heights may occur at different positions: no artificial 3D
@@ -187,6 +194,7 @@ def run(root):
         surface_w=proximal_top,
         growth_plate_w=proximal_gp,
     )
+    measurements["iioc_slice_count_height"]["status"] = "Retired by researcher instruction; historical diagnostic only"
     for side, midpoint in annotations["compartment_midpoint_u"].items():
         vi = v
         add(
@@ -220,9 +228,9 @@ def run(root):
     )
     add(
         "iioc_height_width",
-        measurements["iioc_slice_count_height"]["value"] / width,
+        measurements["iioc_max_local_height"]["value"] / width,
         "1",
-        "Paper slice-onset height divided by maximum growth-plate-level coronal width; provisional definitions.",
+        "Direct orientation-corrected maximal tibial IIOC height divided by manually refined growth-plate width; provisional landmarks.",
     )
     plates = {}
     for side, patch in annotations["plate_patches"].items():
@@ -373,7 +381,7 @@ def run(root):
         9: "iioc_total_volume",
         10: "iioc_bone_volume",
         11: "iioc_bv_tv",
-        12: "iioc_slice_count_height",
+        12: "iioc_max_local_height",
         13: "iioc_growth_plate_width",
         14: "iioc_height_width",
     }
@@ -388,7 +396,9 @@ def run(root):
         )
         for i, key in mapping.items()
     }
-    overrides["12"]["related_measurements"] = ["iioc_max_local_height", "iioc_lateral_height", "iioc_medial_height"]
+    overrides["12"]["related_measurements"] = ["iioc_lateral_height", "iioc_medial_height"]
+    # Preserve the old convention in machine-readable history only.
+    measurements.pop("iioc_slice_count_height", None)
     (out / "review-additions.json").write_text(
         json.dumps(dict(structures=structures, measurements=measurements, parameter_overrides=overrides), indent=2)
         + "\n"
@@ -405,7 +415,7 @@ def run(root):
             ]
         },
         inputs=["intake/hu.npy", "review-08-anatomical/tibia-hu.npy", "review-08-anatomical/tibia-labels.npy"],
-        protocol="User-marked Pasted Graphic 13.tiff: whole IIOC excludes growth plate; retain marrow for TV. Main paper methods sections 2 and 3 supply distinct height conventions.",
+        protocol="User-marked Pasted Graphic 13.tiff: whole IIOC excludes growth plate; retain marrow for TV. Researcher revision: use direct endpoint distances after tibial orientation correction, not slice counting.",
         judgment="Image-traced proximal growth-plate face; no supplementary numeric targets used. All results require boundary review. Plate first runs can include trabecular bridges and are not accepted anatomical plate thickness.",
         output_grid="Aligned isotropic 0.0105 mm masks plus inverse-mapped original-grid tissue mask; primary TV/BV on original grid.",
         qc=["qc-coronal-80.png", "qc-coronal-220.png", "qc-sagittal.png", "qc-axial.png", "qc-rulers.png"],
@@ -416,7 +426,9 @@ def run(root):
         f"| {key.replace('iioc_', '').replace('_', ' ')} | {m['value']:.5f} | {m['unit']} |"
         for key, m in measurements.items()
     )
-    report = f"""# OA6-1RK IIOC — provisional segmentation
+    report = f"""# Tibial IIOC — OA6-1RK provisional segmentation
+
+These measurements are for **tibial bone**. The [trabecular-only analysis](../tibial-trabecular/REPORT.md) is reported separately from these whole-IIOC volumes.
 
 The tissue envelope follows an image-traced proximal growth-plate face and includes internal marrow spaces. It excludes the growth-plate band and metaphysis. These are review candidates, not accepted reference measurements.
 
@@ -430,7 +442,7 @@ BV/TV is a fraction; multiply by 100 for percent. This is whole-IIOC bone fracti
 
 Growth-plate traces are sampled every 20 aligned slices (210 µm); linear interpolation and constant edge continuation need review, particularly the medial bridges and anterior/posterior margins. Moving the traced face ±2 voxels is a sensitivity check, not a confidence interval or full estimate of manual-placement error.
 
-The paper slice-onset height subtracts the most proximal surface W from most proximal growth-plate W; these points need not share U,V. The maximum local height is the greatest shaft-direction column height in the eroded footprint. Compartment heights use provisional midpoint U140 (lateral) and U290 (medial) on the shared maximum-local-height coronal slice. The width is a manually refined tilted chord at the widest screened section V173; it is a maximum candidate, not an exhaustively reviewed maximum. These definitions are kept distinct.
+Per researcher instruction, primary heights are direct Euclidean distances between saved endpoints after tibial shaft-based orientation correction. Slice-count height is retired and excluded from the height/width ratio. The maximum local height is the greatest shaft-direction endpoint distance in the eroded footprint. Compartment heights use provisional midpoint U140 (lateral) and U290 (medial) on the shared maximum-local-height coronal slice. The width is a manually refined tilted chord at the widest screened section V173; it is a maximum candidate, not an exhaustively reviewed maximum. These definitions are kept distinct.
 
 **Plate thickness is not yet an accepted anatomical measurement.** The displayed patches are the first contiguous mineralized run in 0.420×0.420 mm sampling windows. Trabecular bridges visibly extend some runs. The median and distribution are directional diagnostics; a reviewed plate-to-trabecula boundary is still required. Do not treat these numbers as the paper's surface-to-first-trabecular-appearance thickness.
 

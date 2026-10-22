@@ -104,3 +104,17 @@ measurement. See the tracked IIOC review record in `docs/findings/` and the
 exported `iioc/REPORT.md` for definitions, QC, sensitivity and reproduction.
 Restart the server after regenerating masks because overlay arrays are loaded
 at startup. Original final-measurements files are not overwritten.
+
+### Tibial trabecular compartment and direct heights
+
+The dedicated **Tibial IIOC trabecular measurements** section displays six
+metrics from `tibial-trabecular/review-additions.json`. Its tissue and mineralized
+bone surfaces are distinct from whole IIOC and the deck's metaphyseal shaft ROI.
+All six primary metrics use the same aligned HU grid; Tb.N is explicitly derived.
+Open `?measurement=tibial_trab_bv_tv` for the new compartment. Slice overlays are
+available under the two Tibial IIOC trabecular Image options.
+
+Per researcher correction, parameter12 now selects the direct maximal tibial
+height after orientation correction. Both compartment heights retain saved
+ruler endpoints; parameter14 uses the direct maximum/width ratio. The retired
+slice-count height is excluded from the active catalog and primary report.
