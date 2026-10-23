@@ -6,6 +6,7 @@ requires-mars = ">=0.14.0"
 
 [dependencies.meridian-dev-workflow]
 url = "https://github.com/haowjy/meridian-dev-workflow"
+version = ">=0.15.0, <0.16.0"
 
 [local-dependencies.meridian-prompter]
 url = "https://github.com/haowjy/meridian-prompter"

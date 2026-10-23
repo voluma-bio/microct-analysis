@@ -25,7 +25,7 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   separation, and reslicing; documented protocol ambiguities and scope limits.
 
 ### Changed
-- meridian-dev-workflow dependency unpinned: resolves to its latest release. The old `<0.14.0` range excluded current releases.
+- meridian-dev-workflow dependency pinned to the current minor, `>=0.15.0, <0.16.0`. The old `<0.14.0` range excluded current releases.
 - Tibial IIOC heights and height/width ratio use direct endpoint distances after
   orientation correction; slice-count height retired from primary reporting.
 - Review surfaces default to full opacity; hidden rulers and landmark labels
