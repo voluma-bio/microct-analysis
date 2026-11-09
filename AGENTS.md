@@ -68,3 +68,15 @@ Keep skill bodies short and route examples or detailed domain references to `res
 ## Runtime code status
 
 The historical Python package under `src/microct_analysis/` is preserved for now because it is test-covered and contains useful processing and measurement knowledge. The target architecture is agent-generated analysis code with transparent provenance; convert runtime helpers into reference material deliberately, module by module, rather than deleting test-covered code blindly.
+
+## Watching
+
+Behavior a released change expects but no real run has shown yet. Check it on
+the next runs that exercise it, then delete the entry, fixing the prompt first
+if the runs show otherwise.
+
+- **`microct-study-design` hands off through Meridian's launch step.** With
+  `mode: primary`, its next handoff to the analyst prints a launch command
+  from `handoff__meridian`, and the brief names what the analyst owns. If a
+  run spawns the analyst directly instead, decide which the package wants
+  and say so in the agent.
