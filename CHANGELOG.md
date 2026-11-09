@@ -4,6 +4,8 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-09
+
 ### Changed
 - `microct-study-design`: `mode: primary`, so it sees Meridian's handoff launch step when it hands a protocol to the analyst.
 
