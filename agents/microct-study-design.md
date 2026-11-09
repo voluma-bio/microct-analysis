@@ -5,6 +5,7 @@ description: >
   protocol and analyst handoff. This agent does not run analysis; it
   interviews, challenges assumptions, chooses measurements, records open
   decisions, and writes a verifiable goal for `microct-analyst`.
+mode: primary
 model: sol
 effort: high
 model-policies:

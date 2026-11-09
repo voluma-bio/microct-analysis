@@ -4,6 +4,9 @@ Caveman style. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- `microct-study-design`: `mode: primary`, so it sees Meridian's handoff launch step when it hands a protocol to the analyst.
+
 ### Added
 - Tibial IIOC trabecular ROI, same-grid TV/BV/BVTV, 3D sphere Tb.Th/Tb.Sp,
   explicitly model-derived Tb.N, input hashes, phantom checks and 3D/slice review.
